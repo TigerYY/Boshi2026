@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --military-dark: #0a0e14;
+  --military-panel: #0d1117;
+  --military-border: #1e2d40;
+  --military-accent: #00d4ff;
+  --military-warn: #ff6b35;
+  --military-danger: #ff2244;
+  --military-success: #00ff88;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--military-dark);
+  color: #c9d1d9;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0a0e14; }
+::-webkit-scrollbar-thumb { background: #1e2d40; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #00d4ff44; }
+
+/* Leaflet overrides */
+.leaflet-container {
+  background: #0a0e14 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+.leaflet-tile-pane { filter: brightness(0.7) saturate(0.4) hue-rotate(180deg); }
+.leaflet-popup-content-wrapper {
+  background: #0d1117 !important;
+  border: 1px solid #1e2d40 !important;
+  border-radius: 4px !important;
+  color: #c9d1d9 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.1) !important;
+}
+.leaflet-popup-tip { background: #0d1117 !important; }
+.leaflet-popup-close-button { color: #00d4ff !important; }
+.leaflet-control-zoom {
+  border: 1px solid #1e2d40 !important;
+  border-radius: 4px !important;
+}
+.leaflet-control-zoom a {
+  background: #0d1117 !important;
+  color: #00d4ff !important;
+  border-bottom: 1px solid #1e2d40 !important;
+}
+.leaflet-control-zoom a:hover { background: #1e2d40 !important; }
+.leaflet-control-attribution { 
+  background: rgba(0,0,0,0.5) !important; 
+  color: #444 !important;
+  font-size: 9px !important;
+}
+
+/* Military panel style */
+.mil-panel {
+  background: rgba(13, 17, 23, 0.92);
+  border: 1px solid #1e2d40;
+  backdrop-filter: blur(8px);
+}
+
+.mil-panel-header {
+  background: rgba(0, 212, 255, 0.05);
+  border-bottom: 1px solid #1e2d40;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #00d4ff;
+}
+
+.mil-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.scanline::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(transparent, rgba(0, 212, 255, 0.03), transparent);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
