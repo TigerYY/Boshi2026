@@ -40,13 +40,13 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       zoomControl: true,
     });
 
-    // 高德中文瓦片 — style=8 灰色底图，配合 CSS 暗色滤镜呈现军事风格
+    // CartoDB Positron — globally accessible, English labels, pairs well with the dark CSS filter
     L.tileLayer(
-      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
       {
-        subdomains: ['1', '2', '3', '4'],
-        attribution: '© 高德地图 AutoNavi',
-        maxZoom: 18,
+        subdomains: 'abcd',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 19,
       }
     ).addTo(map);
 

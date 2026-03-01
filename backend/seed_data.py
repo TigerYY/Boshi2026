@@ -237,7 +237,7 @@ async def seed():
                     source_id=scraper.source_id,
                     source_name=scraper.source_name,
                     enabled=True,
-                    auto_interval_minutes=15,
+                    auto_interval_minutes=60,
                 ))
 
         # ── Seed News Items ────────────────────────────────────────────────

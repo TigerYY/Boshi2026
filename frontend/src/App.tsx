@@ -12,10 +12,13 @@ import AnalysisPanel from './components/Analysis/AnalysisPanel';
 import ControlPanel from './components/Control/ControlPanel';
 import Timeline from './components/Timeline/Timeline';
 
+export type RefreshPhase = 'idle' | 'scraping' | 'analyzing' | 'reporting';
+
 export default function App() {
   const store = useAppStore();
   const [ollamaOk, setOllamaOk] = useState(false);
   const [newsBadge, setNewsBadge] = useState(0);
+  const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check Ollama health
@@ -29,15 +32,22 @@ export default function App() {
       const text = `[${msg.source}] 新增 ${msg.count} 条新闻`;
       pushNotification(text);
       setNewsBadge(b => b + msg.count);
+      // If manual refresh is running, new_articles means scraping is progressing
+      setRefreshPhase(p => p === 'scraping' ? 'scraping' : p);
     } else if (msg.type === 'ai_processed') {
       pushNotification(`AI 已处理 ${msg.count} 条新闻`);
-      // Refresh map
+      // Advance phase: scraping done → now generating report
+      setRefreshPhase(p => p === 'scraping' || p === 'analyzing' ? 'reporting' : p);
       const refresh = (window as Record<string, unknown>).__warfareMapRefresh;
       if (typeof refresh === 'function') refresh();
     } else if (msg.type === 'analysis_updated') {
       pushNotification(`AI 分析报告已更新，烈度指数: ${msg.intensity_score}`);
     } else if (msg.type === 'manual_refresh_done') {
-      pushNotification(`手动刷新完成，AI 处理 ${msg.ai_processed} 条`);
+      const label = msg.analysis_updated
+        ? `手动刷新完成，AI 处理 ${msg.ai_processed} 条，报告已更新`
+        : `手动刷新完成，AI 处理 ${msg.ai_processed} 条`;
+      pushNotification(label);
+      setRefreshPhase('idle');
     }
   });
 
@@ -111,6 +121,8 @@ export default function App() {
               onAutoRefreshChange={store.setAutoRefresh}
               refreshInterval={store.refreshInterval}
               onIntervalChange={store.setRefreshInterval}
+              refreshPhase={refreshPhase}
+              onRefreshStart={() => setRefreshPhase('scraping')}
             />
           )}
         </SidePanel>

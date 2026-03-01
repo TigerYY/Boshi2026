@@ -38,7 +38,7 @@ html, body, #root {
   background: #0a0e14 !important;
   font-family: 'JetBrains Mono', monospace !important;
 }
-.leaflet-tile-pane { filter: brightness(0.7) saturate(0.4) hue-rotate(180deg); }
+.leaflet-tile-pane { filter: invert(1) brightness(0.85) hue-rotate(180deg) saturate(0.5); }
 .leaflet-popup-content-wrapper {
   background: #0d1117 !important;
   border: 1px solid #1e2d40 !important;

@@ -21,7 +21,7 @@ MODEL = "qwen3-vl:8b"
 _semaphore = asyncio.Semaphore(1)
 
 
-def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240) -> str:
+def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240, num_predict: int = 1024) -> str:
     """Blocking chat call — runs in a thread executor.
 
     Note: do NOT pass think=False to qwen3-vl — it causes the model to use
@@ -34,7 +34,7 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
         "stream": False,
         "options": {
             "temperature": temperature,
-            "num_predict": 4096,   # generous budget: model needs room after reasoning
+            "num_predict": num_predict,
         },
     }
     resp = requests.post(
@@ -50,10 +50,27 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
     return content
 
 
-async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240) -> str:
+async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240, num_predict: int = 1024) -> str:
     """Async wrapper: serialises through semaphore, runs in thread pool."""
     async with _semaphore:
-        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout)
+        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict)
+
+
+def _unload_sync() -> None:
+    """Ask Ollama to immediately evict the model from GPU VRAM."""
+    try:
+        requests.post(
+            f"{OLLAMA_BASE}/api/chat",
+            json={"model": MODEL, "messages": [], "keep_alive": 0},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
+async def unload_model() -> None:
+    """Evict the model from GPU after a batch job completes."""
+    await asyncio.to_thread(_unload_sync)
 
 
 def _parse_json_from_response(raw: str) -> dict:
@@ -108,7 +125,8 @@ async def summarize_and_classify(title: str, content: str) -> dict:
     )
     raw = ""
     try:
-        raw = await _chat([{"role": "user", "content": prompt}])
+        # JSON response is compact; 512 tokens is ample
+        raw = await _chat([{"role": "user", "content": prompt}], num_predict=512)
         result = _parse_json_from_response(raw)
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
@@ -149,7 +167,7 @@ async def analyze_image(image_url: str) -> str:
                 ],
             }
         ]
-        return await _chat(messages, temperature=0.2)
+        return await _chat(messages, temperature=0.2, num_predict=256)
     except Exception as e:
         logger.warning(f"analyze_image failed for {image_url}: {e}")
         return ""
@@ -175,7 +193,8 @@ async def generate_daily_summary(
     )
     raw = ""
     try:
-        raw = await _chat([{"role": "user", "content": prompt}], timeout=300)
+        # Daily summary JSON needs more room: 400-word summary + hotspots
+        raw = await _chat([{"role": "user", "content": prompt}], timeout=300, num_predict=2048)
         result = _parse_json_from_response(raw)
         result.setdefault("summary", "")
         result.setdefault("intensity_score", 5.0)

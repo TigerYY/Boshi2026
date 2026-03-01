@@ -42,7 +42,7 @@ export function pushNotification(msg: string) {
 export function useAppStore() {
   const [layers, setLayers] = useState<LayerVisibility>(defaultLayers);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(15);
+  const [refreshInterval, setRefreshInterval] = useState(60);
   const [selectedEvent, setSelectedEvent] = useState<MilitaryEvent | null>(null);
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
   const [activePanel, setActivePanel] = useState<'news' | 'analysis' | 'control'>('news');

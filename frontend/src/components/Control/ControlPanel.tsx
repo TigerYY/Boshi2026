@@ -3,19 +3,36 @@ import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { fetchSources, updateSource, triggerRefresh, fetchSystemStatus, fetchOllamaHealth } from '../../api/client';
 import type { ScraperSource, SystemStatus } from '../../api/types';
+import type { RefreshPhase } from '../../App';
+
+const PHASE_LABELS: Record<RefreshPhase, string> = {
+  idle: '⚡ 立即刷新全部',
+  scraping: '⟳ 抓取新闻中...',
+  analyzing: '⟳ AI 分析新闻...',
+  reporting: '⟳ 生成战场报告...',
+};
+
+const PHASE_HINTS: Partial<Record<RefreshPhase, string>> = {
+  scraping: '正在从各数据源抓取最新新闻',
+  analyzing: 'AI 正在逐条处理新闻摘要',
+  reporting: 'AI 正在生成战场综述报告（约1-2分钟）',
+};
 
 interface Props {
   autoRefresh: boolean;
   onAutoRefreshChange: (v: boolean) => void;
   refreshInterval: number;
   onIntervalChange: (v: number) => void;
+  refreshPhase: RefreshPhase;
+  onRefreshStart: () => void;
 }
 
-export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refreshInterval, onIntervalChange }: Props) {
+export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refreshInterval, onIntervalChange, refreshPhase, onRefreshStart }: Props) {
   const [sources, setSources] = useState<ScraperSource[]>([]);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'unavailable' | 'loading'>('loading');
-  const [refreshing, setRefreshing] = useState(false);
+
+  const isRefreshing = refreshPhase !== 'idle';
 
   const load = async () => {
     try {
@@ -32,15 +49,19 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
 
   useEffect(() => { load(); }, []);
 
+  // Reload stats when refresh completes
+  useEffect(() => {
+    if (refreshPhase === 'idle') load();
+  }, [refreshPhase]);
+
   const handleToggleSource = async (sid: string, enabled: boolean) => {
     await updateSource(sid, { enabled });
     setSources(prev => prev.map(s => s.source_id === sid ? { ...s, enabled } : s));
   };
 
   const handleRefreshAll = async () => {
-    setRefreshing(true);
+    onRefreshStart();
     await triggerRefresh();
-    setTimeout(() => { setRefreshing(false); load(); }, 2000);
   };
 
   const TIER_LABELS: Record<number, string> = { 1: '一级', 2: '二级', 3: '国内' };
@@ -101,15 +122,20 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
           ))}
         </div>
 
-        <button onClick={handleRefreshAll} disabled={refreshing}
+        <button onClick={handleRefreshAll} disabled={isRefreshing}
           style={{
-            width: '100%', padding: '7px', fontSize: 11, cursor: 'pointer',
-            background: refreshing ? '#1e2d40' : '#00ff8811',
-            border: `1px solid ${refreshing ? '#1e2d40' : '#00ff88'}`,
-            color: refreshing ? '#445566' : '#00ff88', borderRadius: 3, fontFamily: 'inherit',
+            width: '100%', padding: '7px', fontSize: 11, cursor: isRefreshing ? 'not-allowed' : 'pointer',
+            background: isRefreshing ? '#1e2d40' : '#00ff8811',
+            border: `1px solid ${isRefreshing ? '#1e2d40' : '#00ff88'}`,
+            color: isRefreshing ? '#445566' : '#00ff88', borderRadius: 3, fontFamily: 'inherit',
           }}>
-          {refreshing ? '⟳ 更新中...' : '⚡ 立即刷新全部'}
+          {PHASE_LABELS[refreshPhase]}
         </button>
+        {PHASE_HINTS[refreshPhase] && (
+          <div style={{ fontSize: 9, color: '#334455', marginTop: 4, textAlign: 'center' }}>
+            {PHASE_HINTS[refreshPhase]}
+          </div>
+        )}
       </div>
 
       {/* Source List */}

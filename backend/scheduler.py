@@ -10,7 +10,7 @@ from sqlalchemy import select
 from models import AsyncSessionLocal, ScraperStatus
 from scrapers.sources import SCRAPER_MAP
 from pipeline.processor import save_raw_articles, process_pending
-from pipeline.ollama_client import generate_daily_summary
+from pipeline.ollama_client import generate_daily_summary, unload_model
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,10 @@ async def run_all_scrapers():
     # Process with AI
     async with AsyncSessionLocal() as db:
         count = await process_pending(db, limit=30)
+
+    # Evict model from GPU after batch to free VRAM immediately
+    await unload_model()
+
     if count:
         await ws_manager.broadcast({
             "type": "ai_processed",
@@ -164,22 +168,23 @@ async def run_daily_analysis():
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+    # Evict model from GPU after analysis to free VRAM immediately
+    await unload_model()
+
 
 def setup_scheduler():
-    """Register all scheduled jobs."""
-    # Run all scrapers every 15 min
+    """Register all scheduled jobs. Both scraping and analysis run every 60 minutes."""
     scheduler.add_job(
         run_all_scrapers,
-        trigger=IntervalTrigger(minutes=15),
+        trigger=IntervalTrigger(minutes=60),
         id="all_scrapers",
         replace_existing=True,
-        misfire_grace_time=60,
+        misfire_grace_time=120,
     )
-    # Daily analysis at 06:00 UTC
-    from apscheduler.triggers.cron import CronTrigger
     scheduler.add_job(
         run_daily_analysis,
-        trigger=CronTrigger(hour=6, minute=0, timezone="UTC"),
+        trigger=IntervalTrigger(minutes=60),
         id="daily_analysis",
         replace_existing=True,
+        misfire_grace_time=120,
     )

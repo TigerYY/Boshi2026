@@ -44,24 +44,31 @@ async def manual_refresh(
     background_tasks: BackgroundTasks,
     source_id: str | None = None,
 ):
-    """Trigger immediate scrape for one or all sources."""
-    from scheduler import run_scraper, run_all_scrapers, ws_manager
+    """Trigger immediate full-pipeline refresh: scrape → AI process → generate report."""
+    from scheduler import run_scraper, run_all_scrapers, run_daily_analysis, ws_manager
     from pipeline.processor import process_pending
     from models import AsyncSessionLocal
 
     async def _run():
+        # Step 1: scrape
         if source_id:
             await run_scraper(source_id)
         else:
             await run_all_scrapers()
+
+        # Step 2: AI process individual news items
         async with AsyncSessionLocal() as db:
             count = await process_pending(db, limit=50)
-        if count:
-            await ws_manager.broadcast({
-                "type": "manual_refresh_done",
-                "ai_processed": count,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+
+        # Step 3: generate / refresh battlefield analysis report
+        await run_daily_analysis()
+
+        await ws_manager.broadcast({
+            "type": "manual_refresh_done",
+            "ai_processed": count,
+            "analysis_updated": True,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
 
     background_tasks.add_task(_run)
     return {"status": "refresh started", "source_id": source_id or "all"}
