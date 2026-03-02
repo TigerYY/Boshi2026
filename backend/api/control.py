@@ -1,11 +1,14 @@
 """Update control: enable/disable sources, change intervals, manual refresh."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 from datetime import datetime, timezone
-from models import get_db, ScraperStatus
+from models import get_db, ScraperStatus, NewsItem
 from scrapers.sources import SCRAPER_MAP
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/control", tags=["control"])
 
@@ -50,15 +53,24 @@ async def manual_refresh(
     from models import AsyncSessionLocal
 
     async def _run():
-        # Step 1: scrape
+        # Step 1: scrape + AI process new items (process_pending runs inside run_all_scrapers)
         if source_id:
             await run_scraper(source_id)
         else:
             await run_all_scrapers()
 
-        # Step 2: AI process individual news items
+        # Step 2: also process any pre-existing unprocessed items (backlog from retranslate)
+        from models import NewsItem as NewsItemModel
+        from sqlalchemy import func
         async with AsyncSessionLocal() as db:
-            count = await process_pending(db, limit=50)
+            backlog = await db.scalar(
+                select(func.count(NewsItemModel.id)).where(NewsItemModel.processed == False)
+            )
+
+        count = 0
+        if backlog and backlog > 0:
+            async with AsyncSessionLocal() as db:
+                count = await process_pending(db, limit=min(backlog, 50))
 
         # Step 3: generate / refresh battlefield analysis report
         await run_daily_analysis()
@@ -72,6 +84,26 @@ async def manual_refresh(
 
     background_tasks.add_task(_run)
     return {"status": "refresh started", "source_id": source_id or "all"}
+
+
+@router.post("/retranslate")
+async def retranslate_english(db: AsyncSession = Depends(get_db)):
+    """Mark news items whose summary_zh contains no Chinese characters as unprocessed
+    so the scheduler will re-run AI translation on them."""
+    import re
+    result = await db.execute(select(NewsItem))
+    all_items = result.scalars().all()
+    chinese_pattern = re.compile(r'[\u4e00-\u9fff]')
+    to_requeue = [
+        item for item in all_items
+        if not item.summary_zh or not chinese_pattern.search(item.summary_zh)
+    ]
+    count = len(to_requeue)
+    for item in to_requeue:
+        item.processed = False
+    await db.commit()
+    logger.info(f"Retranslate: marked {count} items as unprocessed (no Chinese detected)")
+    return {"status": "queued", "count": count, "message": f"{count} items queued for re-translation. Trigger /api/control/refresh to process."}
 
 
 @router.get("/status")

@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import feedparser
 import logging
@@ -64,7 +65,8 @@ class RssScraper(BaseScraper):
             resp = await client.get(self.rss_url)
             resp.raise_for_status()
 
-        feed = feedparser.parse(resp.text)
+        # feedparser.parse is CPU-bound/sync — run in thread pool to avoid blocking event loop
+        feed = await asyncio.to_thread(feedparser.parse, resp.text)
         articles = []
         for entry in feed.entries[: self.max_items]:
             title = entry.get("title", "")

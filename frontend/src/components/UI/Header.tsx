@@ -34,7 +34,7 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
         }}>⚔</div>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#c9d1d9', letterSpacing: '0.05em' }}>
-            BOSHI · 博视
+            BOSHI · 波斯
           </div>
           <div style={{ fontSize: 9, color: '#445566', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
             美伊战争态势系统

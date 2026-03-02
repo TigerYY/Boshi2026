@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore, pushNotification } from './store/useAppStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { fetchOllamaHealth } from './api/client';
-import type { WsMessage } from './api/types';
+import { fetchOllamaHealth, fetchLatestReport } from './api/client';
+import type { WsMessage, AnalysisReport } from './api/types';
 
 import Header from './components/UI/Header';
 import SidePanel from './components/UI/SidePanel';
@@ -19,11 +19,13 @@ export default function App() {
   const [ollamaOk, setOllamaOk] = useState(false);
   const [newsBadge, setNewsBadge] = useState(0);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
+  const [report, setReport] = useState<AnalysisReport | null>(null);
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Check Ollama health
+  // Check Ollama health + initial report fetch
   useEffect(() => {
     fetchOllamaHealth().then(r => setOllamaOk(r.status === 'ok')).catch(() => setOllamaOk(false));
+    fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => {});
   }, []);
 
   // WebSocket
@@ -42,6 +44,7 @@ export default function App() {
       if (typeof refresh === 'function') refresh();
     } else if (msg.type === 'analysis_updated') {
       pushNotification(`AI 分析报告已更新，烈度指数: ${msg.intensity_score}`);
+      fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => {});
     } else if (msg.type === 'manual_refresh_done') {
       const label = msg.analysis_updated
         ? `手动刷新完成，AI 处理 ${msg.ai_processed} 条，报告已更新`
@@ -98,7 +101,10 @@ export default function App() {
             onToggleLayer={store.toggleLayer}
             timelineFrom={timelineFrom}
             timelineTo={timelineTo}
+            timelineActive={store.timeline.enabled}
             onEventSelect={store.setSelectedEvent}
+            hotspots={report?.hotspots ?? []}
+            aiIntensityScore={report?.intensity_score ?? null}
           />
           {/* Timeline overlaid at bottom of map area */}
           <Timeline

@@ -1,4 +1,4 @@
-# 博视 · 美伊战争态势系统
+# 波斯 · 美伊战争态势系统
 
 **BoShi — US-Iran War Situation Awareness System**
 

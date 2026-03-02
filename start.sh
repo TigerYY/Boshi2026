@@ -1,5 +1,5 @@
 #!/bin/bash
-# 博视 · 美伊战争态势系统 启动脚本
+# 波斯 · 美伊战争态势系统 启动脚本
 
 set -e
 
@@ -8,7 +8,7 @@ BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║   博视 · 美伊战争态势系统 v1.0           ║"
+echo "║   波斯 · 美伊战争态势系统 v1.0           ║"
 echo "║   BoShi US-Iran War Situation System     ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""

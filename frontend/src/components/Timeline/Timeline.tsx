@@ -19,6 +19,9 @@ export default function Timeline({ timeline, onChange }: Props) {
   const [dragging, setDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref keeps the latest currentDate accessible inside the interval closure without stale state
+  const currentDateRef = useRef(timeline.currentDate);
+  useEffect(() => { currentDateRef.current = timeline.currentDate; }, [timeline.currentDate]);
 
   useEffect(() => {
     fetchEvents({
@@ -39,21 +42,20 @@ export default function Timeline({ timeline, onChange }: Props) {
     onChange({ currentDate: newDate });
   }, [timeline.startDate, totalHours, onChange]);
 
-  // Playback
+  // Playback — use currentDateRef to avoid stale closure; call onChange with plain object
   useEffect(() => {
     if (!timeline.playing) {
       if (playTimerRef.current) clearInterval(playTimerRef.current);
       return;
     }
     playTimerRef.current = setInterval(() => {
-      onChange(prev => {
-        const next = addHours((prev as TimelineState).currentDate, 6 * timeline.speedMultiplier);
-        if (next >= timeline.endDate) {
-          clearInterval(playTimerRef.current!);
-          return { currentDate: timeline.endDate, playing: false } as Partial<TimelineState>;
-        }
-        return { currentDate: next } as Partial<TimelineState>;
-      });
+      const next = addHours(currentDateRef.current, 6 * timeline.speedMultiplier);
+      if (next >= timeline.endDate) {
+        clearInterval(playTimerRef.current!);
+        onChange({ currentDate: timeline.endDate, playing: false });
+      } else {
+        onChange({ currentDate: next });
+      }
     }, 500);
     return () => { if (playTimerRef.current) clearInterval(playTimerRef.current); };
   }, [timeline.playing, timeline.speedMultiplier, timeline.endDate, onChange]);
@@ -105,9 +107,20 @@ export default function Timeline({ timeline, onChange }: Props) {
               color: timeline.speedMultiplier === s ? '#00d4ff' : '#556677',
             }}>{s}x</button>
         ))}
-        {/* Play/Pause */}
+        {/* Play/Pause — auto-enable timeline filter + rewind when at/beyond endDate */}
         <button
-          onClick={() => onChange({ playing: !timeline.playing })}
+          onClick={() => {
+            if (timeline.playing) {
+              onChange({ playing: false });
+            } else {
+              const atEnd = timeline.currentDate >= timeline.endDate;
+              onChange({
+                playing: true,
+                enabled: true,
+                ...(atEnd ? { currentDate: timeline.startDate } : {}),
+              });
+            }
+          }}
           style={{
             padding: '2px 10px', fontSize: 11, borderRadius: 2, cursor: 'pointer',
             background: timeline.playing ? '#ff6b3522' : '#00d4ff22',
@@ -117,6 +130,14 @@ export default function Timeline({ timeline, onChange }: Props) {
         >
           {timeline.playing ? '⏸ 暂停' : '▶ 播放'}
         </button>
+        {/* Rewind to start */}
+        <button
+          onClick={() => onChange({ currentDate: timeline.startDate, playing: false })}
+          style={{
+            padding: '2px 8px', fontSize: 10, borderRadius: 2, cursor: 'pointer',
+            background: 'transparent', border: '1px solid #1e2d40', color: '#556677',
+          }}
+        >⏮ 起点</button>
         <button
           onClick={() => onChange({ currentDate: new Date(), playing: false })}
           style={{

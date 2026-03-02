@@ -1,8 +1,15 @@
-"""Async wrapper around the Ollama HTTP API for qwen3-vl:8b.
+"""Async wrapper around the Ollama HTTP API.
 
 Uses requests (via asyncio.to_thread) instead of httpx because Ollama's
 HTTP server returns 503 to httpx connections during model loading, while
 requests/urllib handle the wait correctly.
+
+Model strategy:
+- FAST_MODEL (deepseek-r1:1.5b): structured JSON tasks (news classification,
+  summarization). Quick, CoT in <think> tags inside content field.
+- ANALYSIS_MODEL (qwen3-vl:8b): complex strategic reports. CoT in 'thinking'
+  field (Ollama-native separation); content field may be empty until thinking
+  completes — needs high num_predict budget.
 """
 import asyncio
 import json
@@ -15,21 +22,26 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 OLLAMA_BASE = "http://localhost:11434"
-MODEL = "qwen3-vl:8b"
+FAST_MODEL = "deepseek-r1:1.5b"    # for structured JSON tasks
+ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis
+MODEL = ANALYSIS_MODEL              # backwards-compat alias
 
 # Serialise all Ollama calls: prevents concurrent requests during model load
 _semaphore = asyncio.Semaphore(1)
 
 
-def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240, num_predict: int = 1024) -> str:
+def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
+               num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
     """Blocking chat call — runs in a thread executor.
 
-    Note: do NOT pass think=False to qwen3-vl — it causes the model to use
-    all allocated tokens for hidden reasoning and return empty content.
-    Ollama handles think-block stripping internally when think is unset.
+    Handles two CoT styles:
+    - deepseek-r1: thinking inside <think>...</think> in content field
+    - qwen3-vl: thinking in 'thinking' field, actual output in 'content' field
+      (content may be empty when thinking exceeds num_predict budget; in that
+      case we fall back to extracting JSON from the thinking field itself)
     """
     payload = {
-        "model": MODEL,
+        "model": model,
         "messages": messages,
         "stream": False,
         "options": {
@@ -44,16 +56,25 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
     )
     resp.raise_for_status()
     data = resp.json()
-    content: str = data["message"]["content"]
-    # Defensively strip any <think>…</think> blocks that may appear in content
+    content: str = data["message"].get("content", "") or ""
+    # Strip <think>…</think> blocks (deepseek-r1 style)
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+
+    # qwen3-vl: if content is empty but 'thinking' field has content, use it
+    if not content:
+        thinking: str = data["message"].get("thinking", "") or ""
+        if thinking:
+            logger.debug("content empty, falling back to 'thinking' field")
+            content = thinking.strip()
+
     return content
 
 
-async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240, num_predict: int = 1024) -> str:
+async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
+                num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
     """Async wrapper: serialises through semaphore, runs in thread pool."""
     async with _semaphore:
-        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict)
+        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model)
 
 
 def _unload_sync() -> None:
@@ -103,30 +124,43 @@ def _parse_json_from_response(raw: str) -> dict:
 async def summarize_and_classify(title: str, content: str) -> dict:
     """
     Returns:
-        summary_zh: str
+        summary_zh: str  (3-5 sentences in Chinese)
         category: str (airstrike|naval|land|missile|diplomacy|sanction|movement|other)
         confidence: float 0-1
         locations: list[{name, lat, lon}]
         is_breaking: bool
+
+    Uses FAST_MODEL (deepseek-r1:1.5b) for quick structured JSON output.
     """
+    # Few-shot example helps small models produce correct JSON format
+    example = (
+        '{"summary_zh":"以色列对伊朗核设施实施大规模空袭，使用F-35战机和精确制导炸弹，'
+        '伊朗防空系统拦截部分来袭导弹。此次打击是美以联合行动的一部分，目标为纳坦兹地下浓缩铀设施。",'
+        '"category":"airstrike","confidence":0.9,'
+        '"locations":[{"name":"Natanz","lat":33.72,"lon":51.73}],"is_breaking":true}'
+    )
     prompt = (
-        "You are a military intelligence analyst. Analyze the following news. "
-        "Respond with ONLY a valid JSON object, no markdown, no explanation.\n\n"
-        f"Title: {title}\n"
-        f"Content: {content[:1500]}\n\n"
-        "Return exactly this JSON (nothing else):\n"
-        '{"summary_zh":"3-5句中文摘要","category":"airstrike|naval|land|missile|diplomacy|sanction|movement|other",'
-        '"confidence":0.0,"locations":[{"name":"地名","lat":0.0,"lon":0.0}],"is_breaking":false}\n\n'
-        "Rules:\n"
-        "- confidence: 0.9 for Reuters/AP/BBC/ISW, 0.7 for secondary, 0.5 for others\n"
-        "- locations: only real Middle East places with known lat/lon coordinates\n"
-        "- is_breaking: true only for direct military action (strikes, missiles, naval incidents)\n"
-        "- RETURN ONLY THE JSON OBJECT"
+        "You are a military intelligence analyst. Analyze the news below and return ONLY a JSON object.\n\n"
+        "Example output format:\n"
+        f"{example}\n\n"
+        f"News to analyze:\nTitle: {title}\n"
+        f"Content: {content[:1200]}\n\n"
+        "Return ONLY a JSON object with these fields:\n"
+        '{"summary_zh":"<3-5句中文摘要，必须是中文>","category":"<airstrike|naval|land|missile|diplomacy|sanction|movement|other>",'
+        '"confidence":<0.0-1.0>,"locations":[{"name":"<place>","lat":<float>,"lon":<float>}],"is_breaking":<true|false>}\n\n'
+        "Rules: summary_zh MUST be in Chinese. "
+        "confidence: 0.9 for Reuters/AP/BBC/ISW, 0.7 secondary, 0.5 others. "
+        "locations: Middle East coordinates only. "
+        "is_breaking: true only for direct military strikes/missiles/naval incidents. "
+        "OUTPUT ONLY THE JSON, NOTHING ELSE."
     )
     raw = ""
     try:
-        # JSON response is compact; 512 tokens is ample
-        raw = await _chat([{"role": "user", "content": prompt}], num_predict=512)
+        raw = await _chat(
+            [{"role": "user", "content": prompt}],
+            num_predict=700,
+            model=FAST_MODEL,
+        )
         result = _parse_json_from_response(raw)
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
@@ -134,6 +168,10 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         result.setdefault("locations", [])
         result.setdefault("is_breaking", False)
         result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
+        # If summary is still in English (model failed to follow instruction), mark for retry
+        summary = result.get("summary_zh", "")
+        if summary and summary == title:
+            result["summary_zh"] = title  # will be retried later
         return result
     except Exception as e:
         logger.error(f"summarize_and_classify error: {e} | raw={raw[:200]}")
@@ -194,7 +232,7 @@ async def generate_daily_summary(
     raw = ""
     try:
         # Daily summary JSON needs more room: 400-word summary + hotspots
-        raw = await _chat([{"role": "user", "content": prompt}], timeout=300, num_predict=2048)
+        raw = await _chat([{"role": "user", "content": prompt}], timeout=480, num_predict=8192)
         result = _parse_json_from_response(raw)
         result.setdefault("summary", "")
         result.setdefault("intensity_score", 5.0)
@@ -217,6 +255,11 @@ async def generate_daily_summary(
 async def health_check() -> bool:
     try:
         resp = await asyncio.to_thread(requests.get, f"{OLLAMA_BASE}/api/tags", timeout=5)
-        return resp.status_code == 200
+        if resp.status_code != 200:
+            return False
+        # Confirm both required models are available
+        tags = resp.json()
+        names = [m.get("name", "") for m in tags.get("models", [])]
+        return any(FAST_MODEL in n for n in names)
     except Exception:
         return False

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { fetchNews } from '../../api/client';
-import type { NewsItem } from '../../api/types';
+import { fetchNews, fetchLatestReport, triggerAnalysis } from '../../api/client';
+import type { NewsItem, AnalysisReport } from '../../api/types';
 
 const CATEGORY_LABELS: Record<string, string> = {
   airstrike: '空袭', missile: '导弹', naval: '海战', land: '地面',
@@ -31,6 +31,11 @@ export default function NewsPanel({ onNewsSelect }: Props) {
   const [total, setTotal] = useState(0);
   const [breakingOnly, setBreakingOnly] = useState(false);
 
+  // Analysis summary state
+  const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -50,6 +55,24 @@ export default function NewsPanel({ onNewsSelect }: Props) {
   }, [page, filter, breakingOnly]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetchLatestReport().then(r => { if ('id' in r) setReport(r); }).catch(() => {});
+  }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await triggerAnalysis();
+      setTimeout(async () => {
+        const r = await fetchLatestReport();
+        if ('id' in r) { setReport(r); setSummaryExpanded(true); }
+        setGenerating(false);
+      }, 3000);
+    } catch {
+      setGenerating(false);
+    }
+  };
 
   const filters = ['all', 'airstrike', 'missile', 'naval', 'land', 'diplomacy', 'sanction'];
 
@@ -94,7 +117,7 @@ export default function NewsPanel({ onNewsSelect }: Props) {
 
       {/* Pagination */}
       {total > 20 && (
-        <div style={{ padding: '6px 8px', borderTop: '1px solid #1e2d40', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '6px 8px', borderTop: '1px solid #1e2d40', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 10, color: '#445566' }}>共 {total} 条</span>
           <div style={{ display: 'flex', gap: 4 }}>
             <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
@@ -105,7 +128,90 @@ export default function NewsPanel({ onNewsSelect }: Props) {
           </div>
         </div>
       )}
+
+      {/* AI 战场综述 — fixed bottom section */}
+      <div style={{ borderTop: '2px solid #1e2d40', flexShrink: 0, background: 'rgba(10,14,20,0.95)' }}>
+        {/* Header row with toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', cursor: 'pointer', gap: 8 }}
+          onClick={() => setSummaryExpanded(e => !e)}>
+          <span style={{ fontSize: 10, color: '#00d4ff', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            ⚔ AI 战场综述
+          </span>
+          {report && (
+            <IntensityBadge score={report.intensity_score} />
+          )}
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 10, color: '#334455' }}>{summaryExpanded ? '▲' : '▼'}</span>
+        </div>
+
+        {summaryExpanded && (
+          <div style={{ padding: '0 10px 10px' }}>
+            {report ? (
+              <>
+                <IntensityGauge score={report.intensity_score} />
+                <div style={{
+                  marginTop: 8, fontSize: 11, color: '#8b9ab0', lineHeight: 1.7,
+                  padding: '8px 10px', background: '#0a0e14',
+                  border: '1px solid #1e2d40', borderRadius: 3,
+                  maxHeight: 120, overflowY: 'auto',
+                }}>
+                  {report.content || '暂无综述内容'}
+                </div>
+                {report.generated_at && (
+                  <div style={{ fontSize: 9, color: '#334455', marginTop: 4 }}>
+                    生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: '#334455', marginBottom: 6 }}>暂无分析报告</div>
+            )}
+            <button onClick={handleGenerate} disabled={generating}
+              style={{
+                width: '100%', marginTop: 8, padding: '6px', fontSize: 11, cursor: 'pointer',
+                background: generating ? '#1e2d40' : '#00d4ff11',
+                border: `1px solid ${generating ? '#1e2d40' : '#00d4ff'}`,
+                color: generating ? '#445566' : '#00d4ff',
+                borderRadius: 3, fontFamily: 'inherit',
+              }}>
+              {generating ? '⟳ AI 分析中...' : '⚡ 立即生成分析'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+function intensityColor(score: number) {
+  return score >= 8 ? '#ff2244' : score >= 6 ? '#ff6b35' : score >= 4 ? '#ffdd00' : '#00ff88';
+}
+
+function IntensityGauge({ score }: { score: number }) {
+  const color = intensityColor(score);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+      <div style={{ flex: 1, height: 6, background: '#1e2d40', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{
+          width: `${(score / 10) * 100}%`, height: '100%', borderRadius: 3,
+          background: `linear-gradient(90deg, #00ff88, ${color})`,
+        }} />
+      </div>
+      <span style={{ fontSize: 16, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>
+        {score.toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
+function IntensityBadge({ score }: { score: number }) {
+  const color = intensityColor(score);
+  const label = score >= 8 ? '极高' : score >= 6 ? '高' : score >= 4 ? '中等' : '低';
+  return (
+    <span style={{
+      fontSize: 9, padding: '1px 5px', borderRadius: 2,
+      background: color + '22', color, border: `1px solid ${color}44`,
+    }}>烈度 {score.toFixed(1)} · {label}</span>
   );
 }
 

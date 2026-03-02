@@ -9,20 +9,32 @@ import { getEventIcon, getUnitIcon } from './mapIcons';
 import EventPopup from './EventPopup';
 import UnitPopup from './UnitPopup';
 import LayerControl from './LayerControl';
+import IntensityOverlay from './IntensityOverlay';
+
+interface Hotspot {
+  name: string;
+  lat: number;
+  lon: number;
+  score: number;
+  reason: string;
+}
 
 interface Props {
   layers: LayerVisibility;
   onToggleLayer: (key: keyof LayerVisibility) => void;
   timelineFrom?: Date | null;
   timelineTo?: Date | null;
+  timelineActive?: boolean;
   onEventSelect?: (event: MilitaryEvent) => void;
+  hotspots?: Hotspot[];
+  aiIntensityScore?: number | null;
 }
 
 const ZONE_COLORS: Record<string, string> = {
   patrol: '#1a6fb5', exclusion: '#cc2222', blockade: '#cc8800', control: '#9c66ff',
 };
 
-export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timelineTo, onEventSelect }: Props) {
+export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timelineTo, timelineActive = false, onEventSelect, hotspots = [], aiIntensityScore }: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
@@ -57,6 +69,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       proxy_units: L.layerGroup().addTo(map),
       events: L.layerGroup().addTo(map),
       control_zones: L.layerGroup().addTo(map),
+      hotspots: L.layerGroup().addTo(map),
     };
 
     mapRef.current = map;
@@ -69,6 +82,30 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
   const loadData = useCallback(async () => {
     if (!mapRef.current) return;
     setLoading(true);
+
+    // ── Hotspot circles (synchronous, no API call needed) ────────────────
+    const hotspotsLg = layersRef.current.hotspots;
+    if (hotspotsLg) {
+      hotspotsLg.clearLayers();
+      for (const h of hotspots) {
+        const color = h.score >= 7 ? '#ff2244' : '#ff6b35';
+        const circle = L.circle([h.lat, h.lon], {
+          radius: h.score * 18000,
+          color, weight: 1.5, opacity: 0.7,
+          fillColor: color, fillOpacity: 0.07,
+          dashArray: '6,3',
+        });
+        circle.bindPopup(`
+          <div style="font-size:12px">
+            <div style="font-weight:600;margin-bottom:4px">${h.name}</div>
+            <div style="font-size:10px;color:#ff6b35;margin-bottom:4px">热度指数 ${h.score.toFixed(1)}</div>
+            <div style="font-size:10px;color:#8b9ab0">${h.reason}</div>
+          </div>
+        `);
+        hotspotsLg.addLayer(circle);
+      }
+    }
+
     try {
       const params: { since?: string; until?: string } = {};
       if (timelineFrom) params.since = timelineFrom.toISOString();
@@ -153,10 +190,12 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     } finally {
       setLoading(false);
     }
-  }, [layers, timelineFrom, timelineTo, onEventSelect]);
+  }, [layers, timelineFrom, timelineTo, onEventSelect, hotspots]);
 
+  // Debounce map reload so rapid changes during timeline playback don't flood the API
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => loadData(), 800);
+    return () => clearTimeout(timer);
   }, [loadData]);
 
   // Expose refresh
@@ -169,6 +208,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       <LayerControl layers={layers} onToggle={onToggleLayer} />
+      <IntensityOverlay timelineActive={timelineActive} aiIntensityScore={aiIntensityScore} />
       {loading && (
         <div style={{
           position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
