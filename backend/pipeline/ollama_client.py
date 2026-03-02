@@ -211,12 +211,91 @@ async def analyze_image(image_url: str) -> str:
         return ""
 
 
+# Known strategic locations — fallback when AI returns 0,0 or out-of-region coordinates
+_KNOWN_COORDS: dict[str, tuple[float, float]] = {
+    # Iran nuclear / military
+    "natanz":     (33.72, 51.73), "纳坦兹": (33.72, 51.73),
+    "fordow":     (34.88, 50.50), "福尔多": (34.88, 50.50),
+    "arak":       (34.10, 49.77), "阿拉克": (34.10, 49.77),
+    "bushehr":    (28.92, 50.84), "布什尔": (28.92, 50.84),
+    "isfahan":    (32.65, 51.67), "伊斯法罕": (32.65, 51.67),
+    "tehran":     (35.69, 51.39), "德黑兰": (35.69, 51.39),
+    "mashhad":    (36.30, 59.61), "马什哈德": (36.30, 59.61),
+    "bandar":     (27.19, 56.27), "班达尔": (27.19, 56.27),
+    "hormuz":     (26.58, 56.45), "霍尔木兹": (26.58, 56.45),
+    # US / allied bases
+    "al udeid":   (25.12, 51.31), "乌代德": (25.12, 51.31),
+    "al dhafra":  (24.25, 54.55), "阿尔达芙拉": (24.25, 54.55),
+    "bahrain":    (26.22, 50.59), "巴林": (26.22, 50.59),
+    "kuwait":     (29.40, 47.90), "科威特": (29.40, 47.90),
+    "diego garcia": (7.31, 72.42), "迭戈加西亚": (7.31, 72.42),
+    # Regional hotspots
+    "red sea":    (15.00, 43.00), "红海": (15.00, 43.00),
+    "houthi":     (15.35, 44.20), "胡塞": (15.35, 44.20),
+    "yemen":      (15.35, 44.20), "也门": (15.35, 44.20),
+    "beirut":     (33.89, 35.50), "贝鲁特": (33.89, 35.50),
+    "lebanon":    (33.90, 35.50), "黎巴嫩": (33.90, 35.50),
+    "damascus":   (33.51, 36.29), "大马士革": (33.51, 36.29),
+    "syria":      (34.80, 38.50), "叙利亚": (34.80, 38.50),
+    "baghdad":    (33.33, 44.39), "巴格达": (33.33, 44.39),
+    "iraq":       (33.33, 44.39), "伊拉克": (33.33, 44.39),
+    "doha":       (25.30, 51.53), "多哈": (25.30, 51.53),
+    "israel":     (31.77, 35.22), "以色列": (31.77, 35.22),
+    "jerusalem":  (31.78, 35.22), "耶路撒冷": (31.78, 35.22), "比特谢梅什": (31.75, 35.00),
+    "tel aviv":   (32.08, 34.78), "特拉维夫": (32.08, 34.78),
+    "persian gulf": (26.00, 53.00), "波斯湾": (26.00, 53.00), "海湾地区": (26.00, 53.00),
+    "arab sea":   (23.00, 63.00), "阿拉伯海": (23.00, 63.00),
+    "oman":       (23.60, 58.59), "阿曼": (23.60, 58.59),
+    "riyadh":     (24.70, 46.72), "利雅得": (24.70, 46.72),
+    "saudi":      (24.70, 46.72), "沙特": (24.70, 46.72),
+}
+
+_MIDDLE_EAST_BOUNDS = dict(lat_min=10, lat_max=45, lon_min=32, lon_max=75)
+
+
+def _fix_hotspot_coords(hotspot: dict) -> dict:
+    """
+    If an AI-generated hotspot has invalid coordinates (exactly 0,0 or outside
+    the Middle East/Gulf region), look up the name in the known-coords table.
+    """
+    try:
+        lat = float(hotspot.get("lat") or 0.0)
+        lon = float(hotspot.get("lon") or 0.0)
+    except (TypeError, ValueError):
+        lat, lon = 0.0, 0.0
+    b = _MIDDLE_EAST_BOUNDS
+    in_region = b["lat_min"] <= lat <= b["lat_max"] and b["lon_min"] <= lon <= b["lon_max"]
+
+    if in_region:
+        return hotspot  # coordinates look fine
+
+    name_lower = hotspot.get("name", "").lower()
+    for keyword, (klat, klon) in _KNOWN_COORDS.items():
+        if keyword in name_lower:
+            hotspot = dict(hotspot, lat=klat, lon=klon)
+            logger.debug("Fixed hotspot coords for '%s': 0,0 → %.2f, %.2f", hotspot["name"], klat, klon)
+            return hotspot
+
+    # Last resort: default to centre of Iran
+    logger.warning("Could not resolve coords for hotspot '%s', defaulting to Iran centre", hotspot.get("name"))
+    hotspot = dict(hotspot, lat=33.0, lon=53.0)
+    return hotspot
+
+
 async def generate_daily_summary(
     events_text: str,
     news_text: str,
     period_label: str = "今日",
-) -> dict:
-    """Generate a strategic battlefield summary using qwen3-vl:8b."""
+) -> Optional[dict]:
+    """Generate a strategic battlefield summary using qwen3-vl:8b.
+
+    Returns None when there is no meaningful input data so callers can skip
+    writing a hollow report to the database.
+    """
+    if not (news_text or "").strip() and not (events_text or "").strip():
+        logger.warning("generate_daily_summary: no input data, skipping generation")
+        return None
+
     prompt = (
         f"You are a senior military analyst. Based on the following {period_label}战场信息，"
         "生成战场态势分析报告。用中文回答。"
@@ -224,10 +303,12 @@ async def generate_daily_summary(
         f"新闻摘要:\n{news_text[:2500]}\n\n"
         f"事件列表:\n{events_text[:1500]}\n\n"
         "只返回如下JSON（不要其他任何内容）:\n"
-        '{"summary":"300-400字综合态势分析","intensity_score":5.0,'
-        '"key_developments":["要点1","要点2","要点3"],'
-        '"hotspots":[{"name":"地区","lat":0.0,"lon":0.0,"score":5.0,"reason":"原因"}],'
-        '"outlook":"50字未来研判"}'
+        '{"summary":"300-400字综合态势分析","intensity_score":7.5,'
+        '"key_developments":["美军航母进入波斯湾","伊朗导弹试射","胡塞袭击商船"],'
+        '"hotspots":[{"name":"霍尔木兹海峡","lat":26.58,"lon":56.45,"score":8.0,"reason":"美伊对峙最激烈水域"},'
+        '{"name":"纳坦兹核设施","lat":33.72,"lon":51.73,"score":7.0,"reason":"空袭目标"}],'
+        '"outlook":"50字未来研判"}\n\n'
+        "重要提示：hotspots中lat/lon必须填写真实的中东地区地理坐标（纬度10-45，经度32-75），不能使用0.0。"
     )
     raw = ""
     try:
@@ -240,6 +321,8 @@ async def generate_daily_summary(
         result.setdefault("hotspots", [])
         result.setdefault("outlook", "")
         result["intensity_score"] = max(0.0, min(10.0, float(result["intensity_score"])))
+        # Fix any 0,0 or out-of-region coordinates from the AI
+        result["hotspots"] = [_fix_hotspot_coords(h) for h in result["hotspots"]]
         return result
     except Exception as e:
         logger.error(f"generate_daily_summary error: {e} | raw={raw[:300]}")
@@ -263,3 +346,7 @@ async def health_check() -> bool:
         return any(FAST_MODEL in n for n in names)
     except Exception:
         return False
+
+
+# Alias used by processor.py
+check_ollama_health = health_check

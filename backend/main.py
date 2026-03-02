@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from models import init_db
-from api import news_router, events_router, units_router, zones_router, analysis_router, control_router
+from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router
 from scheduler import scheduler, ws_manager, setup_scheduler
 
 logging.basicConfig(
@@ -31,6 +31,22 @@ async def lifespan(app: FastAPI):
             logger.info("Seeding demo data...")
             import seed_data
             await seed_data.seed()
+
+    # Ensure every scraper in sources.py has a ScraperStatus record
+    from scrapers.sources import ALL_SCRAPERS
+    from models.schemas import ScraperStatus
+    from sqlalchemy import select
+    async with AsyncSessionLocal() as db:
+        for scraper in ALL_SCRAPERS:
+            existing = await db.scalar(select(ScraperStatus).where(ScraperStatus.source_id == scraper.source_id))
+            if not existing:
+                db.add(ScraperStatus(
+                    source_id=scraper.source_id,
+                    source_name=scraper.source_name,
+                    enabled=True,
+                    auto_interval_minutes=60,
+                ))
+        await db.commit()
 
     logger.info("Starting scheduler...")
     setup_scheduler()
@@ -63,6 +79,8 @@ app.include_router(units_router)
 app.include_router(zones_router)
 app.include_router(analysis_router)
 app.include_router(control_router)
+app.include_router(live_router)
+app.include_router(youtube_router)
 
 
 @app.websocket("/ws")

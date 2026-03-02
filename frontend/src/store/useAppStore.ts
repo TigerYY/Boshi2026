@@ -8,6 +8,9 @@ export interface LayerVisibility {
   events: boolean;
   control_zones: boolean;
   heatmap: boolean;
+  aircraft: boolean;
+  ships: boolean;
+  video_feeds: boolean;
 }
 
 export interface TimelineState {
@@ -26,6 +29,9 @@ const defaultLayers: LayerVisibility = {
   events: true,
   control_zones: true,
   heatmap: false,
+  aircraft: true,
+  ships: true,
+  video_feeds: true,
 };
 
 // Simple global state using module-level variables + React state hooks

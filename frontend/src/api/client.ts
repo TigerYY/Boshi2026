@@ -2,7 +2,7 @@ import axios from 'axios';
 import type {
   NewsListResponse, MilitaryEvent, MilitaryUnit, ControlZone,
   GeoJsonFeatureCollection, AnalysisReport, IntensityTrend,
-  ScraperSource, SystemStatus,
+  ScraperSource, SystemStatus, LiveFlightsResponse, LiveShipsResponse,
 } from './types';
 
 const BASE = 'http://localhost:8100';
@@ -64,3 +64,10 @@ export const triggerRefresh = (source_id?: string) =>
 
 export const fetchSystemStatus = () =>
   http.get<SystemStatus>('/api/control/status').then(r => r.data);
+
+// ── Live tracking ─────────────────────────────────────────────────────────
+export const fetchLiveFlights = () =>
+  http.get<LiveFlightsResponse>('/api/flights/live').then(r => r.data);
+
+export const fetchLiveShips = () =>
+  http.get<LiveShipsResponse>('/api/ships/live').then(r => r.data);

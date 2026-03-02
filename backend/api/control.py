@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime, timezone
 from models import get_db, ScraperStatus, NewsItem
 from scrapers.sources import SCRAPER_MAP
+from ._utils import iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +130,8 @@ def _serialize(s: ScraperStatus) -> dict:
         "source_id": s.source_id,
         "source_name": s.source_name,
         "enabled": s.enabled,
-        "last_run": s.last_run.isoformat() if s.last_run else None,
-        "last_success": s.last_success.isoformat() if s.last_success else None,
+        "last_run": iso_utc(s.last_run),
+        "last_success": iso_utc(s.last_success),
         "last_count": s.last_count,
         "error_msg": s.error_msg,
         "auto_interval_minutes": s.auto_interval_minutes,

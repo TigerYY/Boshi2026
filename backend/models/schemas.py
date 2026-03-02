@@ -84,6 +84,8 @@ class AnalysisReport(Base):
     period_end = Column(DateTime)
     intensity_score = Column(Float)                   # 0-10 conflict intensity
     hotspots = Column(JSON)                           # [{lat, lon, score, name}, ...]
+    key_developments = Column(JSON)                   # ["要点1", "要点2", ...]
+    outlook = Column(Text)                            # 50字未来研判
 
 
 class ScraperStatus(Base):

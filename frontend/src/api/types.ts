@@ -85,6 +85,8 @@ export interface AnalysisReport {
   period_end: string | null;
   intensity_score: number;
   hotspots: Array<{ name: string; lat: number; lon: number; score: number; reason: string }>;
+  key_developments: string[];
+  outlook: string;
 }
 
 export interface IntensityTrend {
@@ -108,6 +110,44 @@ export interface SystemStatus {
   events_total: number;
   news_unprocessed: number;
   timestamp: string;
+}
+
+export interface Aircraft {
+  icao24: string;
+  callsign: string;
+  origin_country: string;
+  lon: number;
+  lat: number;
+  altitude: number;
+  on_ground: boolean;
+  velocity: number;
+  heading: number;
+}
+
+export interface LiveFlightsResponse {
+  aircraft: Aircraft[];
+  cached: boolean;
+  count: number;
+}
+
+export interface Ship {
+  mmsi: string;
+  name: string;
+  ship_type: string;
+  flag: string;
+  lat: number;
+  lon: number;
+  speed: number;
+  heading: number;
+  status: string;
+  side: 'US' | 'IR' | 'civilian';
+}
+
+export interface LiveShipsResponse {
+  ships: Ship[];
+  cached: boolean;
+  count: number;
+  demo: boolean;
 }
 
 export type WsMessage =

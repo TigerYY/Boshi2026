@@ -130,10 +130,16 @@ async def process_with_ai(news_item: NewsItem, db: AsyncSession) -> None:
 
 async def process_pending(db: AsyncSession, limit: int = 20) -> int:
     """Process up to `limit` unprocessed news items. Returns count processed."""
+    # Guard: skip the entire batch if Ollama is unreachable to avoid 30+ failed calls
+    if not await ollama_client.check_ollama_health():
+        logger.warning("Ollama unavailable, skipping AI processing batch")
+        return 0
+
+    # Oldest-first: prevents newer articles starving older ones when the DB grows
     result = await db.execute(
         select(NewsItem)
         .where(NewsItem.processed == False)
-        .order_by(NewsItem.fetched_at.desc())
+        .order_by(NewsItem.fetched_at.asc())
         .limit(limit)
     )
     items = result.scalars().all()

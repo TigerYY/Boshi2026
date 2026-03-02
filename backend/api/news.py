@@ -4,6 +4,7 @@ from sqlalchemy import select, func, and_, or_
 from datetime import datetime, timezone
 from typing import Optional
 from models import get_db, NewsItem
+from ._utils import iso_utc
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
@@ -78,7 +79,7 @@ def _serialize(n: NewsItem) -> dict:
         "image_url": n.image_url,
         "image_analysis": n.image_analysis,
         "is_breaking": n.is_breaking,
-        "published_at": n.published_at.isoformat() if n.published_at else None,
-        "fetched_at": n.fetched_at.isoformat() if n.fetched_at else None,
+        "published_at": iso_utc(n.published_at),
+        "fetched_at": iso_utc(n.fetched_at),
         "processed": n.processed,
     }

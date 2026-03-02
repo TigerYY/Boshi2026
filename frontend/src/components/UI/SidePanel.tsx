@@ -16,11 +16,11 @@ interface Props {
 
 export default function SidePanel({ tabs, activeTab, onTabChange, children }: Props) {
   return (
-    <div style={{
+    <div className="hud-panel corner-brackets" style={{
       width: 300,
       display: 'flex', flexDirection: 'column',
       borderLeft: '1px solid #1e2d40',
-      background: 'rgba(13,17,23,0.95)',
+      background: 'rgba(10,14,20,0.96)',
       flexShrink: 0,
     }}>
       {/* Tab bar */}

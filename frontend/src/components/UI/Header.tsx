@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { fetchSources } from '../../api/client';
 
 interface Props {
   ollamaOk: boolean;
@@ -7,20 +8,50 @@ interface Props {
   notifications: string[];
   onToggleTimeline: () => void;
   timelineActive: boolean;
+  refreshTrigger?: number;
 }
 
-export default function Header({ ollamaOk, autoRefresh, notifications, onToggleTimeline, timelineActive }: Props) {
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return '暂无数据';
+  // Ensure the string is parsed as UTC. If the backend omits a timezone suffix,
+  // append 'Z' so the browser doesn't treat it as local time (avoids 8-hour offset
+  // for UTC+8 users).
+  const utcStr = /[Z+]/.test(dateStr.slice(-6)) ? dateStr : dateStr + 'Z';
+  const diff = Math.floor((Date.now() - new Date(utcStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}秒前`;
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins}分钟前`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (remMins === 0) return `${hrs}小时前`;
+  return `${hrs}小时${remMins}分钟前`;
+}
+
+export default function Header({ ollamaOk, autoRefresh, notifications, onToggleTimeline, timelineActive, refreshTrigger }: Props) {
   const [time, setTime] = useState(new Date());
+  const [lastSuccess, setLastSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const load = () =>
+      fetchSources().then(sources => {
+        const times = sources.map(s => s.last_success).filter(Boolean) as string[];
+        if (times.length) setLastSuccess(times.sort().at(-1) ?? null);
+      }).catch(() => {});
+    load();
+    const t = setInterval(load, 2 * 60 * 1000);
+    return () => clearInterval(t);
+  // Re-fetch immediately whenever a manual refresh completes (refreshTrigger bumps)
+  }, [refreshTrigger]);
+
   return (
-    <div style={{
+    <div className="hud-panel" style={{
       height: 44,
-      background: 'rgba(10, 14, 20, 0.96)',
+      background: 'rgba(8, 12, 18, 0.98)',
       borderBottom: '1px solid #1e2d40',
       display: 'flex', alignItems: 'center', padding: '0 14px', gap: 14, flexShrink: 0,
       position: 'relative', zIndex: 2000,
@@ -59,6 +90,21 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
         />
       </div>
 
+      {/* Last update time */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ fontSize: 9, color: '#334455' }}>◎</span>
+        <div>
+          <div style={{ fontSize: 9, color: '#445566', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            数据更新
+          </div>
+          <div style={{ fontSize: 10, color: lastSuccess ? '#00d4ff99' : '#334455', fontVariantNumeric: 'tabular-nums' }}>
+            {timeAgo(lastSuccess)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ width: 1, height: 24, background: '#1e2d40' }} />
+
       <div style={{ flex: 1 }} />
 
       {/* Notifications ticker */}
@@ -78,6 +124,22 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
       )}
 
       <div style={{ flex: 1 }} />
+
+      {/* Upgrade plan link */}
+      <a href="/system-guide.html" target="_blank" rel="noreferrer"
+        title="BoShi 系统文档与升级路线图"
+        style={{
+          padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 2,
+          background: 'transparent',
+          border: '1px solid #1e2d40',
+          color: '#556677', fontFamily: 'inherit',
+          textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#9c66ff'; (e.currentTarget as HTMLElement).style.color = '#9c66ff'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#1e2d40'; (e.currentTarget as HTMLElement).style.color = '#556677'; }}
+      >
+        📋 升级规划
+      </a>
 
       {/* Timeline toggle */}
       <button onClick={onToggleTimeline}
@@ -114,11 +176,10 @@ function StatusBadge({ label, active, activeColor, pulse }: {
       borderRadius: 2, border: `1px solid ${active ? activeColor + '44' : '#1e2d40'}`,
       background: active ? activeColor + '11' : '#0a0e14',
     }}>
-      <span style={{
-        width: 6, height: 6, borderRadius: '50%',
-        background: active ? activeColor : '#334455',
-        ...(pulse && active ? { animation: 'pulse 1.5s infinite' } : {}),
-      }} />
+      {pulse && active
+        ? <span className="live-dot" />
+        : <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? activeColor : '#334455', display: 'inline-block' }} />
+      }
       <span style={{ fontSize: 9, fontWeight: 700, color: active ? activeColor : '#445566', letterSpacing: '0.1em' }}>
         {label}
       </span>

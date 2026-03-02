@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from models import get_db, AnalysisReport, MilitaryEvent, NewsItem
 from pipeline.ollama_client import generate_daily_summary, health_check
+from ._utils import iso_utc
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -69,6 +70,8 @@ async def trigger_analysis(
             events_text = "\n".join(f"[{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
             result = await generate_daily_summary(events_text, news_text)
+            if result is None:
+                return  # no input data, skip writing hollow report
             report = AnalysisReport(
                 report_type="daily_summary",
                 content=result.get("summary", ""),
@@ -76,6 +79,8 @@ async def trigger_analysis(
                 period_end=datetime.now(timezone.utc),
                 intensity_score=result.get("intensity_score", 5.0),
                 hotspots=result.get("hotspots", []),
+                key_developments=result.get("key_developments", []),
+                outlook=result.get("outlook", ""),
             )
             session.add(report)
             await session.commit()
@@ -89,27 +94,53 @@ async def intensity_trend(
     days: int = Query(7, ge=1, le=30),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return daily event counts for intensity chart."""
+    """Return daily intensity scores for the trend chart.
+
+    Primary source: AnalysisReport.intensity_score (one data-point per report).
+    Supplementary: MilitaryEvent severity sums, added on top of the report score
+    for days that have events.  This guarantees a non-empty result even when
+    no MilitaryEvents exist in the window.
+    """
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    result = await db.execute(
+
+    # ── AnalysisReport intensity scores ────────────────────────────────────
+    reports_result = await db.execute(
+        select(AnalysisReport)
+        .where(
+            AnalysisReport.report_type == "daily_summary",
+            AnalysisReport.generated_at >= since,
+        )
+        .order_by(AnalysisReport.generated_at)
+    )
+    reports = reports_result.scalars().all()
+
+    # One score per day — keep the latest report if multiple exist on the same day
+    day_score: dict[str, float] = {}
+    for r in reports:
+        if not r.generated_at:
+            continue
+        day = r.generated_at.strftime("%Y-%m-%d")
+        day_score[day] = r.intensity_score or 5.0
+
+    # ── MilitaryEvent severity sums ─────────────────────────────────────────
+    events_result = await db.execute(
         select(MilitaryEvent)
         .where(MilitaryEvent.occurred_at >= since)
         .order_by(MilitaryEvent.occurred_at)
     )
-    events = result.scalars().all()
+    events = events_result.scalars().all()
 
-    # Group by day
-    day_counts: dict = {}
     type_counts: dict = {}
     for e in events:
         if not e.occurred_at:
             continue
         day = e.occurred_at.strftime("%Y-%m-%d")
-        day_counts[day] = day_counts.get(day, 0) + e.severity
+        # Blend event severity into the report score for the same day
+        day_score[day] = day_score.get(day, 5.0) + (e.severity or 0)
         type_counts[e.event_type] = type_counts.get(e.event_type, 0) + 1
 
     return {
-        "daily_intensity": [{"date": k, "score": v} for k, v in sorted(day_counts.items())],
+        "daily_intensity": [{"date": k, "score": round(v, 1)} for k, v in sorted(day_score.items())],
         "event_type_dist": [{"type": k, "count": v} for k, v in type_counts.items()],
     }
 
@@ -125,9 +156,11 @@ def _serialize(r: AnalysisReport) -> dict:
         "id": r.id,
         "report_type": r.report_type,
         "content": r.content,
-        "generated_at": r.generated_at.isoformat() if r.generated_at else None,
-        "period_start": r.period_start.isoformat() if r.period_start else None,
-        "period_end": r.period_end.isoformat() if r.period_end else None,
+        "generated_at": iso_utc(r.generated_at),
+        "period_start": iso_utc(r.period_start),
+        "period_end": iso_utc(r.period_end),
         "intensity_score": r.intensity_score,
         "hotspots": r.hotspots or [],
+        "key_developments": r.key_developments or [],
+        "outlook": r.outlook or "",
     }

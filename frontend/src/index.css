@@ -35,10 +35,11 @@ html, body, #root {
 
 /* Leaflet overrides */
 .leaflet-container {
-  background: #0a0e14 !important;
+  background: #060a10 !important;
   font-family: 'JetBrains Mono', monospace !important;
 }
-.leaflet-tile-pane { filter: invert(1) brightness(0.85) hue-rotate(180deg) saturate(0.5); }
+/* DarkMatter tiles are already dark — no inversion needed; subtle contrast boost only */
+.leaflet-tile-pane { filter: brightness(0.92) contrast(1.08) saturate(0.85); }
 .leaflet-popup-content-wrapper {
   background: #0d1117 !important;
   border: 1px solid #1e2d40 !important;
@@ -118,4 +119,148 @@ html, body, #root {
   animation: scanline 8s linear infinite;
   pointer-events: none;
   z-index: 9999;
+}
+
+/* ── Radar pulse animation (hotspot markers) ────────────────────────────── */
+@keyframes radarPulse {
+  0%   { opacity: 0.85; transform: translate(-50%, -50%) scale(0.1); }
+  80%  { opacity: 0.15; }
+  100% { opacity: 0;    transform: translate(-50%, -50%) scale(1); }
+}
+
+.hotspot-marker {
+  position: relative;
+  pointer-events: auto;
+}
+.hotspot-core {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--hs-color, #ff2244);
+  box-shadow: 0 0 8px var(--hs-color, #ff2244), 0 0 16px var(--hs-color, #ff2244);
+  z-index: 3;
+}
+.hotspot-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid var(--hs-color, #ff2244);
+  animation: radarPulse var(--hs-dur, 3.2s) ease-out infinite;
+  pointer-events: none;
+}
+.hotspot-label {
+  position: absolute;
+  top: calc(50% + 10px); left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; font-weight: 600;
+  color: var(--hs-color, #ff2244);
+  text-shadow: 0 0 6px var(--hs-color, #ff2244);
+  pointer-events: none;
+  letter-spacing: 0.06em;
+}
+
+/* ── Aircraft icon ──────────────────────────────────────────────────────── */
+.aircraft-icon {
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 4px var(--ac-color, #00d4ff));
+  transform: rotate(var(--ac-heading, 0deg));
+}
+.aircraft-icon:hover { filter: drop-shadow(0 0 8px var(--ac-color, #00d4ff)) brightness(1.3); }
+
+/* ── Ship icon ──────────────────────────────────────────────────────────── */
+.ship-icon {
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 3px var(--sh-color, #00ff88));
+  transform: rotate(var(--sh-heading, 0deg));
+}
+.ship-icon:hover { filter: drop-shadow(0 0 7px var(--sh-color, #00ff88)) brightness(1.3); }
+
+/* ── Video hotspot icon ─────────────────────────────────────────────────── */
+@keyframes videoGlow {
+  0%, 100% { filter: drop-shadow(0 0 3px #ff6b35); }
+  50%       { filter: drop-shadow(0 0 9px #ff6b35) brightness(1.25); }
+}
+.video-hotspot-icon {
+  display: flex; align-items: center; justify-content: center;
+  animation: videoGlow 2.4s ease-in-out infinite;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* ── Live indicator dot ─────────────────────────────────────────────────── */
+@keyframes liveBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #ff2244;
+  animation: liveBlink 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── Panel HUD scan-line texture ────────────────────────────────────────── */
+.hud-panel {
+  position: relative;
+}
+.hud-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.06) 3px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+.hud-panel > * { position: relative; z-index: 1; }
+
+/* ── Corner bracket decoration ─────────────────────────────────────────── */
+.corner-brackets {
+  position: relative;
+}
+.corner-brackets::before,
+.corner-brackets::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: #00d4ff44;
+  border-style: solid;
+  pointer-events: none;
+}
+.corner-brackets::before { top: 2px; left: 2px;  border-width: 1px 0 0 1px; }
+.corner-brackets::after  { bottom: 2px; right: 2px; border-width: 0 1px 1px 0; }
+
+/* ── Number glitch effect ───────────────────────────────────────────────── */
+@keyframes digitGlitch {
+  0%  { opacity: 1; transform: translateX(0)   skewX(0); }
+  8%  { opacity: 0.7; transform: translateX(-2px) skewX(-4deg); clip-path: inset(30% 0 40% 0); }
+  16% { opacity: 1; transform: translateX(2px)  skewX(3deg);  clip-path: inset(0); }
+  24% { opacity: 0.85; transform: translateX(-1px) skewX(0); }
+  100%{ opacity: 1; transform: translateX(0)   skewX(0); }
+}
+.glitch-number {
+  display: inline-block;
+  animation: digitGlitch 0.35s ease forwards;
+}
+
+/* ── Popup iframe container ─────────────────────────────────────────────── */
+.yt-popup-frame {
+  border: none;
+  display: block;
+  border-radius: 2px;
+}
+/* hide Leaflet popup's default white border when containing video */
+.video-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  overflow: hidden;
 }

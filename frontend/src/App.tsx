@@ -20,6 +20,7 @@ export default function App() {
   const [newsBadge, setNewsBadge] = useState(0);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
   const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [headerRefreshKey, setHeaderRefreshKey] = useState(0);
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check Ollama health + initial report fetch
@@ -51,6 +52,8 @@ export default function App() {
         : `手动刷新完成，AI 处理 ${msg.ai_processed} 条`;
       pushNotification(label);
       setRefreshPhase('idle');
+      // Immediately re-fetch the header's "last update" timestamp
+      setHeaderRefreshKey(k => k + 1);
     }
   });
 
@@ -91,6 +94,7 @@ export default function App() {
         notifications={store.notifications}
         onToggleTimeline={() => store.setTimeline(t => ({ ...t, enabled: !t.enabled }))}
         timelineActive={store.timeline.enabled}
+        refreshTrigger={headerRefreshKey}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>

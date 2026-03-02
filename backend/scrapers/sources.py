@@ -10,10 +10,12 @@ logger = logging.getLogger(__name__)
 # ── Tier 1: Primary international sources ──────────────────────────────────
 
 class ReutersScraper(RssScraper):
+    """Reuters is Cloudflare-protected and blocks server-side RSS fetches.
+    Replaced with NYT World RSS which is freely accessible."""
     source_id = "reuters_world"
-    source_name = "Reuters"
+    source_name = "Reuters / NYT World"
     source_tier = 1
-    rss_url = "https://feeds.reuters.com/reuters/worldNews"
+    rss_url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
     max_items = 30
 
 
@@ -34,10 +36,12 @@ class AlJazeeraScraper(RssScraper):
 
 
 class APNewsScraper(RssScraper):
+    """AP News no longer offers a free public RSS feed; replaced with
+    The Guardian Middle East which has an open RSS endpoint."""
     source_id = "apnews"
-    source_name = "AP News"
+    source_name = "The Guardian Middle East"
     source_tier = 1
-    rss_url = "https://rsshub.app/apnews/topics/apf-intlnews"
+    rss_url = "https://www.theguardian.com/world/middleeast/rss"
     max_items = 20
 
 
@@ -94,10 +98,12 @@ class TheWarZoneScraper(RssScraper):
 
 
 class BreakingDefenseScraper(RssScraper):
+    """breakingdefense.com returns 403 for server-side fetches.
+    Replaced with RFI English which has a stable open RSS feed."""
     source_id = "breaking_defense"
-    source_name = "Breaking Defense"
+    source_name = "RFI English"
     source_tier = 2
-    rss_url = "https://breakingdefense.com/feed/"
+    rss_url = "https://www.rfi.fr/en/rss"
     max_items = 15
 
 
@@ -117,6 +123,72 @@ class PoliticoDefenseScraper(RssScraper):
     max_items = 15
 
 
+# ── Tier 2 (additional): OSINT / specialty military ────────────────────────
+
+class IranIntlScraper(RssScraper):
+    """Iran International — English, breaking Iran news."""
+    source_id = "iran_intl"
+    source_name = "Iran International"
+    source_tier = 1
+    rss_url = "https://www.iranintl.com/en/rss"
+    max_items = 20
+
+
+class MiddleEastEyeScraper(RssScraper):
+    source_id = "mee"
+    source_name = "Middle East Eye"
+    source_tier = 1
+    rss_url = "https://www.middleeasteye.net/rss"
+    max_items = 20
+
+
+class BNONewsScraper(RssScraper):
+    """BNO News — rapid-fire breaking news aggregator."""
+    source_id = "bno_news"
+    source_name = "BNO News"
+    source_tier = 1
+    rss_url = "https://bnonews.com/index.php/feed/"
+    max_items = 20
+
+
+class LiveUAMapScraper(RssScraper):
+    """LiveUAMap Iran conflict feed is unreachable from this server.
+    Replaced with Defense.gov news which has a working RSS endpoint."""
+    source_id = "liveuamap_iran"
+    source_name = "Defense.gov"
+    source_tier = 2
+    rss_url = "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10"
+    max_items = 15
+
+
+class CovertShoresScraper(RssScraper):
+    """Covert Shores (H.I. Sutton) — naval / submarine OSINT."""
+    source_id = "covert_shores"
+    source_name = "Covert Shores"
+    source_tier = 2
+    rss_url = "https://www.hisutton.com/feed"
+    max_items = 10
+
+
+class OSINTDefenderScraper(RssScraper):
+    """RSSHub proxy for OSINT Defender returns 403 from this server.
+    Replaced with Bellingcat which covers open-source military intelligence."""
+    source_id = "osint_defender"
+    source_name = "Bellingcat"
+    source_tier = 1
+    rss_url = "https://www.bellingcat.com/feed/"
+    max_items = 20
+
+
+class NavalNewsScraper(RssScraper):
+    """Naval News — warship deployments and naval affairs."""
+    source_id = "naval_news"
+    source_name = "Naval News"
+    source_tier = 2
+    rss_url = "https://www.navalnews.com/feed/"
+    max_items = 15
+
+
 # ── Tier 3: Domestic Chinese sources ──────────────────────────────────────
 
 class GlobalTimesScraper(RssScraper):
@@ -131,22 +203,32 @@ class XinhuaScraper(RssScraper):
     source_id = "xinhua"
     source_name = "Xinhua"
     source_tier = 3
-    rss_url = "http://www.xinhuanet.com/english/rss/worldrss.xml"
+    rss_url = "https://www.xinhuanet.com/english/rss/worldrss.xml"
     max_items = 20
 
 
 # ── Registry ───────────────────────────────────────────────────────────────
 
 ALL_SCRAPERS: list[BaseScraper] = [
+    # Tier 1 — primary international + OSINT
     ReutersScraper(),
     BBCScraper(),
     AlJazeeraScraper(),
     APNewsScraper(),
     ISWScraper(),
+    IranIntlScraper(),
+    MiddleEastEyeScraper(),
+    BNONewsScraper(),
+    OSINTDefenderScraper(),
+    # Tier 2 — military / specialty
     TheWarZoneScraper(),
     BreakingDefenseScraper(),
     DefenseNewsScraper(),
     PoliticoDefenseScraper(),
+    LiveUAMapScraper(),
+    CovertShoresScraper(),
+    NavalNewsScraper(),
+    # Tier 3 — Chinese domestic
     GlobalTimesScraper(),
     XinhuaScraper(),
 ]

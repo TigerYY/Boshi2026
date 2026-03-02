@@ -16,6 +16,9 @@ const LAYER_CONFIG: Array<{
   { key: 'proxy_units', label: '代理武装', color: '#cc8800', icon: '⚔' },
   { key: 'events', label: '冲突事件', color: '#ff6b35', icon: '💥' },
   { key: 'control_zones', label: '控制区域', color: '#9c66ff', icon: '▭' },
+  { key: 'aircraft', label: '实时航班', color: '#00d4ff', icon: '✈' },
+  { key: 'ships', label: '舰船动态', color: '#00ff88', icon: '⛵' },
+  { key: 'video_feeds', label: '实况视频', color: '#ff6b35', icon: '📹' },
   { key: 'heatmap', label: '热力图', color: '#ff2244', icon: '🔥' },
 ];
 

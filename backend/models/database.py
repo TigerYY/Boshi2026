@@ -21,3 +21,13 @@ async def get_db() -> AsyncSession:
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate: add new columns to existing tables (ignore if already exist)
+        migrations = [
+            "ALTER TABLE analysis ADD COLUMN key_developments TEXT",
+            "ALTER TABLE analysis ADD COLUMN outlook TEXT",
+        ]
+        for sql in migrations:
+            try:
+                await conn.exec_driver_sql(sql)
+            except Exception:
+                pass  # column already exists

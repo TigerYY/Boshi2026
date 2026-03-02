@@ -4,6 +4,7 @@ from sqlalchemy import select, func, and_
 from datetime import datetime
 from typing import Optional
 from models import get_db, MilitaryEvent, MilitaryUnit, ControlZone
+from ._utils import iso_utc
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -77,7 +78,7 @@ def _serialize_event(e: MilitaryEvent) -> dict:
         "lat": e.lat,
         "lon": e.lon,
         "location_name": e.location_name,
-        "occurred_at": e.occurred_at.isoformat() if e.occurred_at else None,
+        "occurred_at": iso_utc(e.occurred_at),
         "side": e.side,
         "confirmed": e.confirmed,
         "severity": e.severity,
@@ -135,7 +136,7 @@ def _serialize_unit(u: MilitaryUnit) -> dict:
         "lon": u.lon,
         "location_name": u.location_name,
         "status": u.status,
-        "updated_at": u.updated_at.isoformat() if u.updated_at else None,
+        "updated_at": iso_utc(u.updated_at),
         "extra": u.extra or {},
     }
 
@@ -182,6 +183,6 @@ def _serialize_zone(z: ControlZone) -> dict:
         "name": z.name,
         "zone_type": z.zone_type,
         "side": z.side,
-        "valid_from": z.valid_from.isoformat() if z.valid_from else None,
-        "valid_to": z.valid_to.isoformat() if z.valid_to else None,
+        "valid_from": iso_utc(z.valid_from),
+        "valid_to": iso_utc(z.valid_to),
     }
