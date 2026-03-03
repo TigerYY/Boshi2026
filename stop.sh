@@ -6,6 +6,13 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "停止 波斯 服务..."
 
+# 读取上次启动时记录的实际端口
+BACKEND_PORT=8100
+FRONTEND_PORT=5173
+if [ -f "$ROOT_DIR/.ports" ]; then
+  source "$ROOT_DIR/.ports"
+fi
+
 # 通过 PID 文件停止
 for PIDFILE in "$ROOT_DIR/.backend.pid" "$ROOT_DIR/.frontend.pid"; do
   if [ -f "$PIDFILE" ]; then
@@ -19,7 +26,8 @@ for PIDFILE in "$ROOT_DIR/.backend.pid" "$ROOT_DIR/.frontend.pid"; do
 done
 
 # 兜底：直接释放端口
-lsof -ti :8100 | xargs kill -9 2>/dev/null && echo "  已释放端口 8100" || true
-lsof -ti :5173 | xargs kill -9 2>/dev/null && echo "  已释放端口 5173" || true
+lsof -ti ":$BACKEND_PORT"  | xargs kill -9 2>/dev/null && echo "  已释放端口 $BACKEND_PORT"  || true
+lsof -ti ":$FRONTEND_PORT" | xargs kill -9 2>/dev/null && echo "  已释放端口 $FRONTEND_PORT" || true
 
+rm -f "$ROOT_DIR/.ports"
 echo "✓ 所有服务已停止"
