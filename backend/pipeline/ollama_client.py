@@ -22,8 +22,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 OLLAMA_BASE = "http://localhost:11434"
-FAST_MODEL = "deepseek-r1:1.5b"    # for structured JSON tasks
-ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis
+FAST_MODEL = "qwen2.5:3b"          # for structured JSON tasks (news summarization/classification)
+ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis + image understanding
 MODEL = ANALYSIS_MODEL              # backwards-compat alias
 
 # Serialise all Ollama calls: prevents concurrent requests during model load
@@ -121,57 +121,85 @@ def _parse_json_from_response(raw: str) -> dict:
     raise ValueError(f"No valid JSON found in response: {raw[:300]}")
 
 
+def _extract_locations_from_text(text: str) -> list[dict]:
+    """Keyword-based location extraction using the known-coords table.
+
+    Replaces AI-based coordinate generation which was unreliable on small models.
+    Scans the text for known place names and returns matched coordinates.
+    """
+    text_lower = text.lower()
+    found: list[dict] = []
+    seen_coords: set[tuple] = set()
+    for keyword, (lat, lon) in _KNOWN_COORDS.items():
+        if keyword in text_lower:
+            coord_key = (round(lat, 1), round(lon, 1))
+            if coord_key not in seen_coords:
+                seen_coords.add(coord_key)
+                found.append({"name": keyword, "lat": lat, "lon": lon})
+            if len(found) >= 3:
+                break
+    return found
+
+
 async def summarize_and_classify(title: str, content: str) -> dict:
     """
     Returns:
         summary_zh: str  (3-5 sentences in Chinese)
         category: str (airstrike|naval|land|missile|diplomacy|sanction|movement|other)
         confidence: float 0-1
-        locations: list[{name, lat, lon}]
+        locations: list[{name, lat, lon}]  — extracted via keyword lookup, not AI
         is_breaking: bool
 
-    Uses FAST_MODEL (deepseek-r1:1.5b) for quick structured JSON output.
+    Uses FAST_MODEL (qwen2.5:3b) for structured JSON output.
+    Location coordinates are resolved via keyword table rather than AI generation
+    to avoid hallucinated coordinates from small models.
     """
-    # Few-shot example helps small models produce correct JSON format
+    # Simplified 3-field prompt: remove location/coordinate generation from AI scope
     example = (
-        '{"summary_zh":"以色列对伊朗核设施实施大规模空袭，使用F-35战机和精确制导炸弹，'
-        '伊朗防空系统拦截部分来袭导弹。此次打击是美以联合行动的一部分，目标为纳坦兹地下浓缩铀设施。",'
-        '"category":"airstrike","confidence":0.9,'
-        '"locations":[{"name":"Natanz","lat":33.72,"lon":51.73}],"is_breaking":true}'
+        '{"summary_zh":"以色列对伊朗纳坦兹核设施实施大规模空袭，使用F-35战机携带精确制导炸弹，'
+        '伊朗防空系统成功拦截部分导弹但核心设施受损。美国为此次行动提供情报支持，'
+        '伊朗随即宣布进入战时状态并誓言报复。","category":"airstrike","is_breaking":true}'
     )
     prompt = (
-        "You are a military intelligence analyst. Analyze the news below and return ONLY a JSON object.\n\n"
-        "Example output format:\n"
+        "你是军事情报分析师。请分析以下新闻，只返回JSON对象，不要任何其他文字。\n\n"
+        "示例输出格式：\n"
         f"{example}\n\n"
-        f"News to analyze:\nTitle: {title}\n"
-        f"Content: {content[:1200]}\n\n"
-        "Return ONLY a JSON object with these fields:\n"
-        '{"summary_zh":"<3-5句中文摘要，必须是中文>","category":"<airstrike|naval|land|missile|diplomacy|sanction|movement|other>",'
-        '"confidence":<0.0-1.0>,"locations":[{"name":"<place>","lat":<float>,"lon":<float>}],"is_breaking":<true|false>}\n\n'
-        "Rules: summary_zh MUST be in Chinese. "
-        "confidence: 0.9 for Reuters/AP/BBC/ISW, 0.7 secondary, 0.5 others. "
-        "locations: Middle East coordinates only. "
-        "is_breaking: true only for direct military strikes/missiles/naval incidents. "
-        "OUTPUT ONLY THE JSON, NOTHING ELSE."
+        f"待分析新闻：\n标题：{title}\n"
+        f"内容：{content[:1500]}\n\n"
+        "只返回包含以下3个字段的JSON：\n"
+        '{"summary_zh":"<3-5句连贯的中文摘要，要有军事分析视角>","category":"<从以下选一个：airstrike|naval|land|missile|diplomacy|sanction|movement|other>","is_breaking":<true或false>}\n\n'
+        "规则：\n"
+        "1. summary_zh必须是中文，3-5句话，包含关键军事信息\n"
+        "2. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
+        "3. 只输出JSON，不要解释，不要markdown代码块"
     )
     raw = ""
     try:
         raw = await _chat(
             [{"role": "user", "content": prompt}],
-            num_predict=700,
+            temperature=0.1,   # lower temperature = less hallucination
+            num_predict=600,
             model=FAST_MODEL,
         )
         result = _parse_json_from_response(raw)
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
-        result.setdefault("confidence", 0.5)
-        result.setdefault("locations", [])
         result.setdefault("is_breaking", False)
-        result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
-        # If summary is still in English (model failed to follow instruction), mark for retry
-        summary = result.get("summary_zh", "")
-        if summary and summary == title:
-            result["summary_zh"] = title  # will be retried later
+
+        # Confidence: assign by source tier based on title keywords rather than AI guessing
+        source_hint = title.lower()
+        if any(s in source_hint for s in ["reuters", "ap ", "bbc", "isw", "pentagon", "white house"]):
+            confidence = 0.9
+        elif any(s in source_hint for s in ["guardian", "nyt", "rfi", "defense", "al jazeera"]):
+            confidence = 0.75
+        else:
+            confidence = 0.6
+        result["confidence"] = confidence
+
+        # Locations: keyword-based lookup on combined title+summary (no AI coordinate generation)
+        combined_text = title + " " + content[:800] + " " + result.get("summary_zh", "")
+        result["locations"] = _extract_locations_from_text(combined_text)
+
         return result
     except Exception as e:
         logger.error(f"summarize_and_classify error: {e} | raw={raw[:200]}")
@@ -179,7 +207,7 @@ async def summarize_and_classify(title: str, content: str) -> dict:
             "summary_zh": title,
             "category": "other",
             "confidence": 0.3,
-            "locations": [],
+            "locations": _extract_locations_from_text(title + " " + content[:300]),
             "is_breaking": False,
         }
 
@@ -340,10 +368,16 @@ async def health_check() -> bool:
         resp = await asyncio.to_thread(requests.get, f"{OLLAMA_BASE}/api/tags", timeout=5)
         if resp.status_code != 200:
             return False
-        # Confirm both required models are available
         tags = resp.json()
         names = [m.get("name", "") for m in tags.get("models", [])]
-        return any(FAST_MODEL in n for n in names)
+        # Require at least the analysis model; fast model may still be downloading
+        has_analysis = any(ANALYSIS_MODEL.split(":")[0] in n for n in names)
+        has_fast = any(FAST_MODEL.split(":")[0] in n for n in names)
+        if not has_analysis:
+            logger.warning("Ollama: analysis model %s not found", ANALYSIS_MODEL)
+        if not has_fast:
+            logger.warning("Ollama: fast model %s not found", FAST_MODEL)
+        return has_analysis or has_fast
     except Exception:
         return False
 

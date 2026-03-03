@@ -45,6 +45,7 @@ lsof -ti :8100 | xargs kill -9 2>/dev/null || true
 
 uvicorn main:app --host 0.0.0.0 --port 8100 &
 BACKEND_PID=$!
+echo $BACKEND_PID > "$ROOT_DIR/.backend.pid"
 echo "  后端 PID: $BACKEND_PID"
 
 # Wait for backend
@@ -68,6 +69,7 @@ lsof -ti :5173 | xargs kill -9 2>/dev/null || true
 
 npm run dev -- --port 5173 &
 FRONTEND_PID=$!
+echo $FRONTEND_PID > "$ROOT_DIR/.frontend.pid"
 echo "  前端 PID: $FRONTEND_PID"
 
 sleep 3
@@ -82,6 +84,20 @@ echo "╚═══════════════════════�
 echo ""
 echo "按 Ctrl+C 停止所有服务"
 
-trap "echo ''; echo '停止服务...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT TERM
+_stop() {
+  echo ''
+  echo '停止服务...'
+  kill $BACKEND_PID $FRONTEND_PID 2>/dev/null
+  # 等待端口实际释放，最多等 5 秒
+  for i in 1 2 3 4 5; do
+    sleep 1
+    lsof -ti :8100 | xargs kill -9 2>/dev/null || true
+    lsof -ti :5173 | xargs kill -9 2>/dev/null || true
+  done
+  rm -f "$ROOT_DIR/.backend.pid" "$ROOT_DIR/.frontend.pid"
+  exit 0
+}
+
+trap '_stop' INT TERM HUP
 
 wait
