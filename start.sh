@@ -8,14 +8,28 @@ BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 
 # ── 动态端口检测 ──────────────────────────────────────────────────────────────
-# 从候选端口列表中找第一个未被占用的端口
+# 检查端口是否被占用：同时用 lsof (TCP LISTEN) 和 nc 双重确认，更可靠
+_port_in_use() {
+  local port=$1
+  # lsof -sTCP:LISTEN 只匹配真正在监听的 TCP socket（IPv4 + IPv6）
+  if lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -q .; then
+    return 0  # 被占用
+  fi
+  # 兜底：nc 连接测试
+  if nc -z localhost "$port" 2>/dev/null; then
+    return 0  # 被占用
+  fi
+  return 1    # 空闲
+}
+
 find_free_port() {
   local start=$1
   local port=$start
-  while lsof -ti ":$port" > /dev/null 2>&1; do
+  while _port_in_use "$port"; do
+    echo "  端口 $port 已被占用，尝试 $((port+1))..." >&2
     port=$((port + 1))
     if [ $((port - start)) -gt 20 ]; then
-      echo "ERROR: 在 $start-$port 范围内找不到空闲端口" >&2
+      echo "ERROR: 在 $start-$((port-1)) 范围内找不到空闲端口" >&2
       exit 1
     fi
   done
