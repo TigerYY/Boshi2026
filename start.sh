@@ -74,13 +74,17 @@ fi
 echo ""
 echo "▶ 启动后端服务 (端口 $BACKEND_PORT)..."
 cd "$BACKEND_DIR"
-if [ ! -d "venv" ]; then
-  echo "  创建 Python 虚拟环境..."
-  python3 -m venv venv
+if [ -d "venv" ]; then
   source venv/bin/activate
-  pip install -r requirements.txt -q
-else
+fi
+
+if ! command -v uvicorn > /dev/null 2>&1; then
+  echo "  (重新)初始化 Python 虚拟环境与依赖..."
+  if [ ! -d "venv" ]; then
+    python3 -m venv venv
+  fi
   source venv/bin/activate
+  pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 fi
 
 uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" &
