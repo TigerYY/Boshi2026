@@ -4,7 +4,8 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { fetchIntensityTrend } from '../../api/client';
-import type { IntensityTrend } from '../../api/types';
+import type { IntensityTrend, AnalysisReport } from '../../api/types';
+import MacroRadar from './MacroRadar';
 
 const EVENT_COLORS: Record<string, string> = {
   airstrike: '#ff6b35', missile: '#ff2244', naval: '#00d4ff',
@@ -16,7 +17,12 @@ const EVENT_LABELS: Record<string, string> = {
   land: '地面', diplomacy: '外交', sanction: '制裁', other: '其他',
 };
 
-export default function AnalysisPanel() {
+interface AnalysisPanelProps {
+  report: AnalysisReport | null;
+  financeData: { symbol: string; price: number; change: number } | null;
+}
+
+export default function AnalysisPanel({ report, financeData }: AnalysisPanelProps) {
   const [trend, setTrend] = useState<IntensityTrend | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
@@ -118,6 +124,9 @@ export default function AnalysisPanel() {
               color="#00d4ff"
             />
           </div>
+
+          {/* Doomsday Escalation Radar */}
+          <MacroRadar report={report} financeData={financeData} />
         </>
       )}
     </div>

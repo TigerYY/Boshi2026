@@ -13,10 +13,10 @@ export default function IntensityOverlay({ timelineActive = false, aiIntensitySc
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    fetchIntensityTrend(7).then(setTrend).catch(() => {});
+    fetchIntensityTrend(7).then(setTrend).catch(() => { });
     // Refresh every 10 minutes
     const t = setInterval(() => {
-      fetchIntensityTrend(7).then(setTrend).catch(() => {});
+      fetchIntensityTrend(7).then(setTrend).catch(() => { });
     }, 10 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
@@ -25,9 +25,9 @@ export default function IntensityOverlay({ timelineActive = false, aiIntensitySc
   const displayScore = aiIntensityScore ?? null;
   const scoreColor = displayScore == null ? '#556677'
     : displayScore >= 8 ? '#ff2244'
-    : displayScore >= 6 ? '#ff6b35'
-    : displayScore >= 4 ? '#ffdd00'
-    : '#00ff88';
+      : displayScore >= 6 ? '#ff6b35'
+        : displayScore >= 4 ? '#ffdd00'
+          : '#00ff88';
 
   // When timeline is open (~100px tall), shift up to avoid overlap
   const bottomOffset = timelineActive ? 114 : 10;
@@ -88,7 +88,7 @@ export default function IntensityOverlay({ timelineActive = false, aiIntensitySc
                 contentStyle={{ background: '#0d1117', border: '1px solid #1e2d40', fontSize: 9 }}
                 labelStyle={{ color: '#556677' }}
                 itemStyle={{ color: scoreColor }}
-                formatter={(v: number) => [v.toFixed(1), '烈度']}
+                formatter={(v: any) => [Number(v).toFixed(1), '烈度']}
               />
               <Area
                 type="monotone"

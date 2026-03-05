@@ -20,13 +20,14 @@ export default function App() {
   const [newsBadge, setNewsBadge] = useState(0);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
   const [report, setReport] = useState<AnalysisReport | null>(null);
+  const [financeData, setFinanceData] = useState<{ symbol: string; price: number; change: number } | null>(null);
   const [headerRefreshKey, setHeaderRefreshKey] = useState(0);
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check Ollama health + initial report fetch
   useEffect(() => {
     fetchOllamaHealth().then(r => setOllamaOk(r.status === 'ok')).catch(() => setOllamaOk(false));
-    fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => {});
+    fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => { });
   }, []);
 
   // WebSocket
@@ -41,11 +42,11 @@ export default function App() {
       pushNotification(`AI 已处理 ${msg.count} 条新闻`);
       // Advance phase: scraping done → now generating report
       setRefreshPhase(p => p === 'scraping' || p === 'analyzing' ? 'reporting' : p);
-      const refresh = (window as Record<string, unknown>).__warfareMapRefresh;
+      const refresh = (window as unknown as Record<string, unknown>).__warfareMapRefresh;
       if (typeof refresh === 'function') refresh();
     } else if (msg.type === 'analysis_updated') {
       pushNotification(`AI 分析报告已更新，烈度指数: ${msg.intensity_score}`);
-      fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => {});
+      fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => { });
     } else if (msg.type === 'manual_refresh_done') {
       const label = msg.analysis_updated
         ? `手动刷新完成，AI 处理 ${msg.ai_processed} 条，报告已更新`
@@ -54,6 +55,8 @@ export default function App() {
       setRefreshPhase('idle');
       // Immediately re-fetch the header's "last update" timestamp
       setHeaderRefreshKey(k => k + 1);
+    } else if (msg.type === 'finance_update') {
+      setFinanceData(msg.data);
     }
   });
 
@@ -64,7 +67,7 @@ export default function App() {
       return;
     }
     autoRefreshTimerRef.current = setInterval(() => {
-      const refresh = (window as Record<string, unknown>).__warfareMapRefresh;
+      const refresh = (window as unknown as Record<string, unknown>).__warfareMapRefresh;
       if (typeof refresh === 'function') refresh();
     }, store.refreshInterval * 60 * 1000);
     return () => {
@@ -123,7 +126,7 @@ export default function App() {
             <NewsPanel onNewsSelect={store.setSelectedNews} />
           )}
           {store.activePanel === 'analysis' && (
-            <AnalysisPanel />
+            <AnalysisPanel report={report} financeData={financeData} />
           )}
           {store.activePanel === 'control' && (
             <ControlPanel

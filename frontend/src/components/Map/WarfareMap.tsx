@@ -458,7 +458,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       eventsLg.clearLayers();
       if (layers.events) {
         for (const f of eventsGeo.features) {
-          const e = f.properties as MilitaryEvent;
+          const e = f.properties as unknown as MilitaryEvent;
           const coords = f.geometry.coordinates as [number, number];
           const marker = L.marker([coords[1], coords[0]], { icon: getEventIcon(e.event_type) });
           marker.bindPopup(renderToStaticMarkup(<EventPopup event={e} />), { ...POPUP_OPTS, maxWidth: 300 });
@@ -476,7 +476,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         lg.clearLayers();
         if (layers[layerKey]) {
           for (const f of unitsGeo.features) {
-            const u = f.properties as MilitaryUnit;
+            const u = f.properties as unknown as MilitaryUnit;
             if (u.side !== side) continue;
             const coords = f.geometry.coordinates as [number, number];
             const marker = L.marker([coords[1], coords[0]], { icon: getUnitIcon(u.unit_type, u.side) });
@@ -617,8 +617,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
 
   // Expose map refresh globally
   useEffect(() => {
-    (window as Record<string, unknown>).__warfareMapRefresh = loadData;
-    return () => { delete (window as Record<string, unknown>).__warfareMapRefresh; };
+    (window as unknown as Record<string, unknown>).__warfareMapRefresh = loadData;
+    return () => { delete (window as unknown as Record<string, unknown>).__warfareMapRefresh; };
   }, [loadData]);
 
   return (

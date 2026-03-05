@@ -11,6 +11,7 @@ from models import AsyncSessionLocal, ScraperStatus
 from scrapers.sources import SCRAPER_MAP
 from pipeline.processor import save_raw_articles, process_pending
 from pipeline.ollama_client import generate_daily_summary
+from scrapers.financial import fetch_btc_data
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,17 @@ async def run_all_scrapers():
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+async def run_finance_scraper():
+    """Fetch BTC prices and broadcast to radar."""
+    async with AsyncSessionLocal() as db:
+        data = await fetch_btc_data(db)
+        if data:
+            await ws_manager.broadcast({
+                "type": "finance_update",
+                "data": data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+
 
 async def run_daily_analysis():
     """Generate daily battlefield analysis report."""
@@ -132,6 +144,19 @@ async def run_daily_analysis():
     try:
         async with AsyncSessionLocal() as db:
             since = datetime.now(timezone.utc) - timedelta(hours=24)
+            
+            # Fetch latest BTC data to augment the prompt for macro escalation prediction
+            from models.schemas import FinancialMetric
+            metric = await db.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "BTCUSDT")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+            financial_text = ""
+            if metric:
+                financial_text = f"今日比特币(BTC/USD)避险市场数据: 当前价格 ${metric.price:,.2f}, 24小时涨跌幅 {metric.change_24h}%。"
+
             news_result = await db.execute(
                 select(NewsItem)
                 .where(NewsItem.processed == True, NewsItem.published_at >= since)
@@ -155,7 +180,7 @@ async def run_daily_analysis():
                 f"[{e.event_type}] {e.title} @ {e.location_name}" for e in events
             )
 
-            result = await generate_daily_summary(events_text, news_text)
+            result = await generate_daily_summary(events_text, news_text, financial_text=financial_text)
 
             # generate_daily_summary returns None when input is empty — skip hollow reports
             if result is None:
@@ -171,6 +196,8 @@ async def run_daily_analysis():
                 hotspots=result.get("hotspots", []),
                 key_developments=result.get("key_developments", []),
                 outlook=result.get("outlook", ""),
+                escalation_probability=result.get("escalation_probability", 0.0),
+                market_correlation=result.get("market_correlation", ""),
             )
             db.add(report)
             await db.commit()
@@ -207,4 +234,12 @@ def setup_scheduler():
         id="daily_analysis",
         replace_existing=True,
         misfire_grace_time=600,
+    )
+    # Pull financial data every 5 minutes
+    scheduler.add_job(
+        run_finance_scraper,
+        trigger=IntervalTrigger(minutes=5),
+        id="finance_scraper",
+        replace_existing=True,
+        misfire_grace_time=60,
     )

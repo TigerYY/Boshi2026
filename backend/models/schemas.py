@@ -100,3 +100,14 @@ class ScraperStatus(Base):
     last_count = Column(Integer, default=0)
     error_msg = Column(Text)
     auto_interval_minutes = Column(Integer, default=15)
+
+
+class FinancialMetric(Base):
+    __tablename__ = "financial_metrics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(50), nullable=False)       # BTCUSDT, OIL, GOLD etc.
+    price = Column(Float, nullable=False)
+    change_24h = Column(Float)                        # Percentage change -5.0 to 5.0 etc.
+    volume = Column(Float)
+    fetched_at = Column(DateTime, server_default=func.now())

@@ -25,6 +25,8 @@ async def init_db():
         migrations = [
             "ALTER TABLE analysis ADD COLUMN key_developments TEXT",
             "ALTER TABLE analysis ADD COLUMN outlook TEXT",
+            "ALTER TABLE analysis ADD COLUMN escalation_probability FLOAT",
+            "ALTER TABLE analysis ADD COLUMN market_correlation TEXT",
         ]
         for sql in migrations:
             try:

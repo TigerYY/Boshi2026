@@ -87,6 +87,8 @@ export interface AnalysisReport {
   hotspots: Array<{ name: string; lat: number; lon: number; score: number; reason: string }>;
   key_developments: string[];
   outlook: string;
+  escalation_probability?: number;
+  market_correlation?: string;
 }
 
 export interface IntensityTrend {
@@ -155,4 +157,5 @@ export type WsMessage =
   | { type: 'ai_processed'; count: number; timestamp: string }
   | { type: 'analysis_updated'; report_type: string; intensity_score: number; timestamp: string }
   | { type: 'manual_refresh_done'; ai_processed: number; analysis_updated?: boolean; timestamp: string }
+  | { type: 'finance_update'; data: { symbol: string; price: number; change: number }; timestamp: string }
   | { type: 'pong' };
