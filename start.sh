@@ -84,7 +84,7 @@ if ! command -v uvicorn > /dev/null 2>&1; then
     python3 -m venv venv
   fi
   source venv/bin/activate
-  pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+  pip install -r requirements.txt
 fi
 
 uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" &
