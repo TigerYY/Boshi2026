@@ -10,7 +10,7 @@ from sqlalchemy import select
 from models import AsyncSessionLocal, ScraperStatus
 from scrapers.sources import SCRAPER_MAP
 from pipeline.processor import save_raw_articles, process_pending
-from pipeline.ollama_client import generate_daily_summary, unload_model
+from pipeline.ollama_client import generate_daily_summary
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +118,6 @@ async def run_all_scrapers():
     async with AsyncSessionLocal() as db:
         count = await process_pending(db, limit=30)
 
-    # Evict model from GPU after batch to free VRAM immediately
-    await unload_model()
-
     if count:
         await ws_manager.broadcast({
             "type": "ai_processed",
@@ -186,9 +183,6 @@ async def run_daily_analysis():
             })
     except Exception as exc:
         logger.error("run_daily_analysis failed: %s", exc)
-    finally:
-        # Always evict model from GPU to free VRAM, even on error
-        await unload_model()
 
 
 def setup_scheduler():

@@ -2,6 +2,7 @@ import asyncio
 import httpx
 import feedparser
 import logging
+import random
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Optional
@@ -9,14 +10,19 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+]
+
+def get_random_headers() -> dict:
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 
 class RawArticle:
@@ -61,7 +67,9 @@ class RssScraper(BaseScraper):
     max_items: int = 20
 
     async def _fetch(self) -> list[RawArticle]:
-        async with httpx.AsyncClient(headers=HEADERS, timeout=20, follow_redirects=True) as client:
+        # Anti-scraping randomized delay to prevent Cloudflare 503 bursts when scheduler fires 18 scrapers instantly
+        await asyncio.sleep(random.uniform(0.5, 3.5))
+        async with httpx.AsyncClient(headers=get_random_headers(), timeout=20, follow_redirects=True) as client:
             resp = await client.get(self.rss_url)
             resp.raise_for_status()
 

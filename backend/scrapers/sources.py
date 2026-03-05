@@ -3,7 +3,7 @@ import httpx
 import logging
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
-from .base import BaseScraper, RssScraper, RawArticle, HEADERS
+from .base import BaseScraper, RssScraper, RawArticle, get_random_headers
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class ISWScraper(BaseScraper):
 
     async def _fetch(self) -> list[RawArticle]:
         url = "https://www.understandingwar.org/backgrounder/iran-update"
-        async with httpx.AsyncClient(headers=HEADERS, timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(headers=get_random_headers(), timeout=30, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 

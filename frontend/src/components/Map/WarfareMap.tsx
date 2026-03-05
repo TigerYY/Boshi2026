@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { useAppStore } from '../../store/useAppStore';
 import type { LayerVisibility } from '../../store/useAppStore';
 import type { MilitaryEvent, MilitaryUnit, Aircraft, Ship } from '../../api/types';
 import { fetchEventsGeoJson, fetchUnitsGeoJson, fetchZonesGeoJson, fetchLiveFlights, fetchLiveShips } from '../../api/client';
@@ -202,18 +203,22 @@ function createAircraftIcon(heading: number, onGround: boolean, country: string)
 function createShipIcon(heading: number, side: string, shipType: string): L.DivIcon {
   const color = side === 'US' ? '#00d4ff' : side === 'IR' ? '#ff4444' : '#88aa88';
   const isWarship = ['carrier', 'destroyer', 'cruiser', 'frigate', 'submarine', 'amphibious', 'patrol_vessel', 'warship'].includes(shipType);
-  const size = isWarship ? 16 : 12;
-  // Diamond for warship, circle for civilian
+
+  const w = isWarship ? 14 : 12;
+  const h = isWarship ? 18 : 16;
+
+  // Pointing North (0 deg). Warship = sleek; Civilian = bulky cargo profile
   const shapePath = isWarship
-    ? `<path d="M7 1 L13 7 L7 13 L1 7 Z" fill="${color}" opacity="0.9"/>`
-    : `<circle cx="7" cy="7" r="5" fill="${color}" opacity="0.6"/>`;
+    ? `<path d="M7 1 L10 7 L9 16 L5 16 L4 7 Z" fill="${color}" opacity="0.9"/>`
+    : `<path d="M7 2 L11 5 L11 15 L3 15 L3 5 Z" fill="${color}" opacity="0.75"/>`;
+
   return L.divIcon({
     className: '',
     html: `<div class="ship-icon" style="--sh-color:${color}; --sh-heading:${heading}deg;">
-      <svg viewBox="0 0 14 14" width="${size}" height="${size}">${shapePath}</svg>
+      <svg viewBox="0 0 14 18" width="${w}" height="${h}">${shapePath}</svg>
     </div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h / 2],
   });
 }
 
@@ -312,8 +317,8 @@ function buildVideoPopupHtml(hotspot: typeof VIDEO_HOTSPOTS[0]): string {
     </div>`;
 }
 
-// Shared popup options: keep all popups open until the user manually closes them
-const POPUP_OPTS: L.PopupOptions = { autoClose: false, closeOnClick: false };
+// Shared popup options: auto close when another popup opens or map is clicked
+const POPUP_OPTS: L.PopupOptions = { autoClose: true, closeOnClick: true };
 
 export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timelineTo, timelineActive = false, onEventSelect, hotspots = [], aiIntensityScore }: Props) {
   const mapRef = useRef<L.Map | null>(null);
@@ -321,6 +326,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const [loading, setLoading] = useState(true);
   const [liveStats, setLiveStats] = useState<{ aircraft: number; ships: number } | null>(null);
+  const { refreshInterval } = useAppStore();
 
   // Initialize map once
   useEffect(() => {
@@ -332,7 +338,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       minZoom: 3,
       maxZoom: 14,
       zoomControl: true,
-      closePopupOnClick: false,
+      closePopupOnClick: true,
     });
 
     // CartoDB DarkMatter — natively dark, no inversion needed
@@ -346,15 +352,15 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     ).addTo(map);
 
     layersRef.current = {
-      us_units:      L.layerGroup().addTo(map),
-      iran_units:    L.layerGroup().addTo(map),
-      proxy_units:   L.layerGroup().addTo(map),
-      events:        L.layerGroup().addTo(map),
+      us_units: L.layerGroup().addTo(map),
+      iran_units: L.layerGroup().addTo(map),
+      proxy_units: L.layerGroup().addTo(map),
+      events: L.layerGroup().addTo(map),
       control_zones: L.layerGroup().addTo(map),
-      hotspots:      L.layerGroup().addTo(map),
-      aircraft:      L.layerGroup().addTo(map),
-      ships:         L.layerGroup().addTo(map),
-      video_feeds:   L.layerGroup().addTo(map),
+      hotspots: L.layerGroup().addTo(map),
+      aircraft: L.layerGroup().addTo(map),
+      ships: L.layerGroup().addTo(map),
+      video_feeds: L.layerGroup().addTo(map),
     };
 
     // Add static video hotspot markers (these never change)
@@ -602,12 +608,12 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     }
   }, [layers.video_feeds]);
 
-  // Poll live tracking every 60 seconds
+  // Poll live tracking synced with global refresh interval
   useEffect(() => {
     updateLiveTracking();
-    const interval = setInterval(updateLiveTracking, 60_000);
+    const interval = setInterval(updateLiveTracking, refreshInterval * 60 * 1000);
     return () => clearInterval(interval);
-  }, [updateLiveTracking]);
+  }, [updateLiveTracking, refreshInterval]);
 
   // Expose map refresh globally
   useEffect(() => {

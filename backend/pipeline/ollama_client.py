@@ -5,8 +5,8 @@ HTTP server returns 503 to httpx connections during model loading, while
 requests/urllib handle the wait correctly.
 
 Model strategy:
-- FAST_MODEL (deepseek-r1:1.5b): structured JSON tasks (news classification,
-  summarization). Quick, CoT in <think> tags inside content field.
+- FAST_MODEL (qwen2.5:3b): structured JSON tasks (news classification,
+  summarization). Quick inference.
 - ANALYSIS_MODEL (qwen3-vl:8b): complex strategic reports. CoT in 'thinking'
   field (Ollama-native separation); content field may be empty until thinking
   completes — needs high num_predict budget.
@@ -26,24 +26,19 @@ FAST_MODEL = "qwen2.5:3b"          # for structured JSON tasks (news summarizati
 ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis + image understanding
 MODEL = ANALYSIS_MODEL              # backwards-compat alias
 
-# Serialise all Ollama calls: prevents concurrent requests during model load
-_semaphore = asyncio.Semaphore(1)
+# Serialise Ollama calls by model type to prevent concurrent loading crashes
+_fast_semaphore = asyncio.Semaphore(1)
+_analysis_semaphore = asyncio.Semaphore(1)
 
 
 def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
                num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
-    """Blocking chat call — runs in a thread executor.
-
-    Handles two CoT styles:
-    - deepseek-r1: thinking inside <think>...</think> in content field
-    - qwen3-vl: thinking in 'thinking' field, actual output in 'content' field
-      (content may be empty when thinking exceeds num_predict budget; in that
-      case we fall back to extracting JSON from the thinking field itself)
-    """
+    """Blocking chat call — runs in a thread executor."""
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
+        "keep_alive": "30m",
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
@@ -57,8 +52,6 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
     resp.raise_for_status()
     data = resp.json()
     content: str = data["message"].get("content", "") or ""
-    # Strip <think>…</think> blocks (deepseek-r1 style)
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
     # qwen3-vl: if content is empty but 'thinking' field has content, use it
     if not content:
@@ -72,8 +65,9 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
 
 async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
                 num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
-    """Async wrapper: serialises through semaphore, runs in thread pool."""
-    async with _semaphore:
+    """Async wrapper: serialises through respective semaphore, runs in thread pool."""
+    sem = _fast_semaphore if model == FAST_MODEL else _analysis_semaphore
+    async with sem:
         return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model)
 
 
@@ -330,12 +324,11 @@ async def generate_daily_summary(
         "只返回纯JSON对象，不要markdown，不要解释文字。\n\n"
         f"新闻摘要:\n{news_text[:2500]}\n\n"
         f"事件列表:\n{events_text[:1500]}\n\n"
-        "只返回如下JSON（不要其他任何内容）:\n"
-        '{"summary":"300-400字综合态势分析","intensity_score":7.5,'
-        '"key_developments":["美军航母进入波斯湾","伊朗导弹试射","胡塞袭击商船"],'
-        '"hotspots":[{"name":"霍尔木兹海峡","lat":26.58,"lon":56.45,"score":8.0,"reason":"美伊对峙最激烈水域"},'
-        '{"name":"纳坦兹核设施","lat":33.72,"lon":51.73,"score":7.0,"reason":"空袭目标"}],'
-        '"outlook":"50字未来研判"}\n\n'
+        "只返回如下JSON（必须用真实分析结果替换尖括号及内容，不要输出其他文字或思考过程）:\n"
+        '{"summary":"<根据提供的信息生成300-400字的综合态势分析>","intensity_score":<根据局势评估的烈度分数，0.0到10.0的浮点数>,'
+        '"key_developments":["<关键事件进展1>","<关键事件进展2>","<关键事件进展3>"],'
+        '"hotspots":[{"name":"<热点名称>","lat":<真实纬度浮点数>,"lon":<真实经度浮点数>,"score":<该地点热度0-10>,"reason":"<热点原因描述>"}],'
+        '"outlook":"<50字左右的未来局势研判>"}\n\n'
         "重要提示：hotspots中lat/lon必须填写真实的中东地区地理坐标（纬度10-45，经度32-75），不能使用0.0。"
     )
     raw = ""

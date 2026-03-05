@@ -18,7 +18,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/api", tags=["live"])
 logger = logging.getLogger(__name__)
 
-CACHE_TTL = 300  # 5 minutes — reduces API pressure significantly
+CACHE_TTL = 45  # 45s: short enough to serve 1-min dynamic frontend refreshes, avoids spamming APIs
 
 _flights_cache: dict = {"data": [], "expires_at": 0.0}
 _ships_cache: dict = {"data": [], "expires_at": 0.0, "demo": True}
@@ -51,8 +51,9 @@ _DEMO_AIRCRAFT = [
 # Free, no API key, generous rate limits; uses baro altitude (feet) + ground speed (knots)
 
 ADSBINFO_POINTS = [
-    (26.0, 55.0, 600),  # Persian Gulf / Arabian Sea center
-    (18.0, 42.0, 450),  # Red Sea / Yemen
+    (26.58, 56.45, 1000),  # Strait of Hormuz (core area, extended to 1000km to cover entire Gulf & Iran)
+    (18.0, 42.0, 800),    # Red Sea / Yemen (extended to 800km)
+    (33.0, 44.0, 800),    # Iraq / Syria / Northern ME
 ]
 ADSBINFO_URL = "https://api.adsb.lol/v2/point/{lat}/{lon}/{dist}"
 
@@ -234,25 +235,115 @@ _DEMO_SHIPS = [
     {"mmsi": "370000010", "name": "MSC ARIES", "ship_type": "container",
      "flag": "MH", "lat": 15.32, "lon": 43.12, "speed": 0.0, "heading": 0, "status": "seized",
      "side": "civilian"},
+    # Additional high-density demo ships around Strait of Hormuz
+    {"mmsi": "370000011", "name": "FRONT ALTAIR", "ship_type": "tanker",
+     "flag": "MH", "lat": 25.42, "lon": 57.32, "speed": 13.1, "heading": 110, "status": "underway",
+     "side": "civilian"},
+    {"mmsi": "370000012", "name": "KOKUKA COURAGEOUS", "ship_type": "tanker",
+     "flag": "PA", "lat": 25.22, "lon": 57.50, "speed": 12.0, "heading": 125, "status": "underway",
+     "side": "civilian"},
+    {"mmsi": "422000005", "name": "IRGC 快速突击艇", "ship_type": "patrol_vessel",
+     "flag": "IR", "lat": 26.65, "lon": 56.40, "speed": 35.0, "heading": 210, "status": "underway",
+     "side": "IR"},
+    {"mmsi": "422000006", "name": "马克兰号前沿基地舰", "ship_type": "warship",
+     "flag": "IR", "lat": 25.10, "lon": 60.55, "speed": 8.5, "heading": 260, "status": "underway",
+     "side": "IR"},
+    {"mmsi": "338000012", "name": "USCGC MAUI", "ship_type": "patrol_vessel",
+     "flag": "US", "lat": 26.50, "lon": 56.35, "speed": 18.0, "heading": 85, "status": "underway",
+     "side": "US"},
 ]
+
+
+import websockets
+import json
+
+_ais_ws_task = None
+_ais_state = {}
+_KNOWN_MMSI = {s["mmsi"]: s for s in _DEMO_SHIPS}
+
+async def _ais_listener_loop(api_key: str):
+    uri = "wss://stream.aisstream.io/v0/stream"
+    subscribe_message = {
+        "APIKey": api_key,
+        "BoundingBoxes": [
+            [[22.0, 48.0], [30.0, 60.0]],  # Persian Gulf & Strait of Hormuz
+            [[12.0, 42.0], [20.0, 46.0]]   # Red Sea & Gulf of Aden
+        ],
+        "FilterMessageTypes": ["PositionReport"]
+    }
+    
+    while True:
+        try:
+            async with websockets.connect(uri) as websocket:
+                logger.info("Connected to AISStream WebSocket")
+                await websocket.send(json.dumps(subscribe_message))
+                async for message in websocket:
+                    msg = json.loads(message)
+                    if msg.get("MessageType") == "PositionReport":
+                        report = msg["Message"]["PositionReport"]
+                        meta = msg.get("MetaData", {})
+                        mmsi = str(meta.get("MMSI", ""))
+                        if not mmsi:
+                            continue
+                            
+                        # Format mapping
+                        if mmsi in _KNOWN_MMSI:
+                            # Military / high-value targets preserve their rich metadata
+                            base = _KNOWN_MMSI[mmsi].copy()
+                            base["lat"] = round(report["Latitude"], 5)
+                            base["lon"] = round(report["Longitude"], 5)
+                            base["speed"] = round(report.get("Sog", 0), 1)
+                            base["heading"] = round(report.get("Cog", 0))
+                            _ais_state[mmsi] = base
+                        else:
+                            # Generic commercial ship
+                            name = (meta.get("ShipName") or "").strip()
+                            _ais_state[mmsi] = {
+                                "mmsi": mmsi,
+                                "name": name or f"Vessel-{mmsi}",
+                                "ship_type": "cargo",
+                                "flag": "Unknown",
+                                "lat": round(report["Latitude"], 5),
+                                "lon": round(report["Longitude"], 5),
+                                "speed": round(report.get("Sog", 0), 1),
+                                "heading": round(report.get("Cog", 0)),
+                                "status": "underway",
+                                "side": "civilian"
+                            }
+                            
+                        # Evict oldest to keep memory stable (1500 ships max)
+                        if len(_ais_state) > 1500:
+                            keys = list(_ais_state.keys())[:500]
+                            for k in keys:
+                                _ais_state.pop(k, None)
+                                
+        except Exception as e:
+            logger.warning(f"AISStream connection error: {e}")
+            await asyncio.sleep(5)
+
+
+def _ensure_ais_listener():
+    global _ais_ws_task
+    if _ais_ws_task is None or _ais_ws_task.done():
+        api_key = os.environ.get("AISSTREAM_API_KEY", "e7a7fb78b225406bf8b43aec35f0e1fa68157196")
+        if api_key:
+            loop = asyncio.get_event_loop()
+            _ais_ws_task = loop.create_task(_ais_listener_loop(api_key))
 
 
 @router.get("/ships/live")
 async def get_live_ships():
-    now = time.time()
-    if _ships_cache["expires_at"] > now:
-        return {
-            "ships": _ships_cache["data"],
-            "cached": True,
-            "count": len(_ships_cache["data"]),
-            "demo": _ships_cache["demo"],
-        }
-    # Future: add real AIS integration here when AISSTREAM_API_KEY is available
-    api_key = os.environ.get("AISSTREAM_API_KEY", "")
-    is_demo = not api_key
-    data = _DEMO_SHIPS
-
-    _ships_cache["data"] = data
-    _ships_cache["expires_at"] = now + CACHE_TTL
-    _ships_cache["demo"] = is_demo
-    return {"ships": data, "cached": False, "count": len(data), "demo": is_demo}
+    _ensure_ais_listener()
+    
+    # If WS just started and has no data, fallback to DEMO
+    if not _ais_state:
+        return {"ships": _DEMO_SHIPS, "cached": False, "count": len(_DEMO_SHIPS), "demo": True}
+        
+    data = list(_ais_state.values())
+    
+    # Prioritise military ships, cap civilians to avoid freezing frontend
+    known = [s for s in data if s["mmsi"] in _KNOWN_MMSI]
+    others = [s for s in data if s["mmsi"] not in _KNOWN_MMSI]
+    final_data = known + others[:400]
+    
+    return {"ships": final_data, "cached": False, "count": len(final_data), "demo": False}
