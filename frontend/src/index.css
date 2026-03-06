@@ -144,6 +144,8 @@ html, body, #root {
 }
 .hotspot-ring {
   position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 1.5px solid var(--hs-color, #ff2244);
   animation: radarPulse var(--hs-dur, 3.2s) ease-out infinite;

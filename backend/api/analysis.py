@@ -67,8 +67,14 @@ async def trigger_analysis(
             )
             events = events_result.scalars().all()
 
-            news_text = "\n".join(f"[{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
-            events_text = "\n".join(f"[{e.event_type}] {e.title} @ {e.location_name}" for e in events)
+            def _fmt_dt(dt: datetime | None) -> str:
+                if not dt: return "[未知时间]"
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return (dt + timedelta(hours=8)).strftime("[%m-%d %H:%M]")
+
+            news_text = "\n".join(f"{_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
+            events_text = "\n".join(f"{_fmt_dt(e.occurred_at)} [{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
             result = await generate_daily_summary(events_text, news_text)
             if result is None:

@@ -9,13 +9,8 @@ interface MacroRadarProps {
 }
 
 export default function MacroRadar({ report, financeData }: MacroRadarProps) {
-    // If we don't have escalation probability, don't show the radar
-    if (!report || report.escalation_probability === undefined) {
-        return null;
-    }
-
-    const prob = report.escalation_probability;
-    // Determine color based on severity (0-30: green, 30-70: yellow, 70-100: red)
+    // Determine prob locally or default to 50 if missing
+    const prob = report?.escalation_probability ?? 50;
     const isHighRisk = prob >= 70;
     const isMediumRisk = prob >= 30 && prob < 70;
 
@@ -105,17 +100,15 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                 </div>
 
                 {/* Market Correlation AI Report */}
-                {report.market_correlation && (
-                    <div style={{
-                        marginTop: '12px', padding: '8px',
-                        background: 'rgba(0, 212, 255, 0.05)',
-                        borderLeft: '2px solid #00d4ff',
-                        fontSize: '10px', color: '#a1b3c6', lineHeight: 1.5
-                    }}>
-                        <strong style={{ color: '#00d4ff', display: 'block', marginBottom: '4px' }}>AI 避险资产联动推演:</strong>
-                        {report.market_correlation}
-                    </div>
-                )}
+                <div style={{
+                    marginTop: '12px', padding: '8px',
+                    background: 'rgba(0, 212, 255, 0.05)',
+                    borderLeft: '2px solid #00d4ff',
+                    fontSize: '10px', color: '#a1b3c6', lineHeight: 1.5
+                }}>
+                    <strong style={{ color: '#00d4ff', display: 'block', marginBottom: '4px' }}>AI 避险资产联动推演:</strong>
+                    {report?.market_correlation || "数据采集中...等待分析引擎获取下一个行情周期进行联动研判。"}
+                </div>
 
                 {/* BTC Mini Sparkline */}
                 {financeData && btcTrend.length > 0 && (

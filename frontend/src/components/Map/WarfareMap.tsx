@@ -171,15 +171,15 @@ function createHotspotIcon(score: number, name: string): L.DivIcon {
   return L.divIcon({
     className: '',
     html: `
-      <div class="hotspot-marker" style="--hs-color:${color}; --hs-dur:${dur}s; width:${r3 * 2}px; height:${r3 * 2}px;">
+      <div class="hotspot-marker" style="--hs-color:${color}; --hs-dur:${dur}s; width:20px; height:20px;">
         <div class="hotspot-core"></div>
         <div class="hotspot-ring" style="width:${r1 * 2}px;height:${r1 * 2}px;animation-delay:0s;"></div>
         <div class="hotspot-ring" style="width:${r2 * 2}px;height:${r2 * 2}px;animation-delay:1.1s;"></div>
         <div class="hotspot-ring" style="width:${r3 * 2}px;height:${r3 * 2}px;animation-delay:2.2s;"></div>
-        <div class="hotspot-label">${name}</div>
+        <div class="hotspot-label" style="pointer-events: auto;">${name}</div>
       </div>`,
-    iconSize: [r3 * 2, r3 * 2],
-    iconAnchor: [r3, r3],
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 }
 

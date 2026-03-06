@@ -86,6 +86,8 @@ class AnalysisReport(Base):
     hotspots = Column(JSON)                           # [{lat, lon, score, name}, ...]
     key_developments = Column(JSON)                   # ["要点1", "要点2", ...]
     outlook = Column(Text)                            # 50字未来研判
+    escalation_probability = Column(Float)            # 0-100% escalating chance
+    market_correlation = Column(Text)                 # AI text report on market
 
 
 class ScraperStatus(Base):

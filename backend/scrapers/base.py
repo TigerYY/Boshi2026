@@ -92,9 +92,9 @@ class RssScraper(BaseScraper):
             # Parse date
             published_at = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
-                import time
+                import calendar
                 published_at = datetime.fromtimestamp(
-                    time.mktime(entry.published_parsed), tz=timezone.utc
+                    calendar.timegm(entry.published_parsed), tz=timezone.utc
                 )
 
             # Image

@@ -320,8 +320,8 @@ async def generate_daily_summary(
         return None
 
     prompt = (
-        f"You are a senior military analyst. Based on the following {period_label}战场信息，"
-        "生成战场态势分析报告。用中文回答。"
+        f"You are a senior military analyst. Based on the following {period_label}战场信息（包含北京时间的发生时间戳），\n"
+        "请按时间线梳理战局演变与前后因果，并生成综合战场态势分析报告。用中文回答。"
         "只返回纯JSON对象，不要markdown，不要解释文字。\n\n"
         f"新闻摘要:\n{news_text[:2500]}\n\n"
         f"事件列表:\n{events_text[:1500]}\n\n"
