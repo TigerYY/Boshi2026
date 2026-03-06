@@ -112,6 +112,7 @@ export default function App() {
             onEventSelect={store.setSelectedEvent}
             hotspots={report?.hotspots ?? []}
             aiIntensityScore={report?.intensity_score ?? null}
+            abuDhabiRisk={report?.abu_dhabi_risk ?? null}
           />
           {/* Timeline overlaid at bottom of map area */}
           <Timeline

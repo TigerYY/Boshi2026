@@ -154,6 +154,7 @@ interface Props {
   onEventSelect?: (event: MilitaryEvent) => void;
   hotspots?: Hotspot[];
   aiIntensityScore?: number | null;
+  abuDhabiRisk?: number | null;
 }
 
 const ZONE_COLORS: Record<string, string> = {
@@ -320,7 +321,7 @@ function buildVideoPopupHtml(hotspot: typeof VIDEO_HOTSPOTS[0]): string {
 // Shared popup options: auto close when another popup opens or map is clicked
 const POPUP_OPTS: L.PopupOptions = { autoClose: true, closeOnClick: true };
 
-export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timelineTo, timelineActive = false, onEventSelect, hotspots = [], aiIntensityScore }: Props) {
+export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timelineTo, timelineActive = false, onEventSelect, hotspots = [], aiIntensityScore, abuDhabiRisk = null }: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
@@ -425,6 +426,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     const hotspotsLg = layersRef.current.hotspots;
     if (hotspotsLg) {
       hotspotsLg.clearLayers();
+
+      // Render standard AI hotspots
       for (const h of hotspots) {
         const marker = L.marker([h.lat, h.lon], {
           icon: createHotspotIcon(h.score, h.name),
@@ -439,6 +442,51 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
           </div>
         `, { ...POPUP_OPTS });
         hotspotsLg.addLayer(marker);
+      }
+
+      // Render custom Abu Dhabi warning marker if risk data exists
+      if (abuDhabiRisk !== null) {
+        // UAE Abu Dhabi Approximate Coord: 24.4539° N, 54.3773° E
+        const uaeLat = 24.4539;
+        const uaeLon = 54.3773;
+        const color = abuDhabiRisk > 50 ? '#ff2244' : abuDhabiRisk > 30 ? '#ffdd00' : '#00ff88';
+        const dur = abuDhabiRisk > 50 ? '1s' : '3s'; // Faster pulse if high risk
+
+        const abuDhabiIcon = L.divIcon({
+          className: '',
+          html: `
+            <div style="position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;">
+              <div style="
+                position:absolute; width:100%; height:100%; border-radius:50%;
+                background:${color}00; border:2px solid ${color};
+                animation: pulse ${dur} infinite;
+              "></div>
+              <div style="
+                position:absolute; width:60%; height:60%; border-radius:50%;
+                background:${color}44; border:1px solid ${color};
+                display:flex; align-items:center; justify-content:center;
+                font-size:10px; color:#fff; text-shadow:0 0 5px #000;
+              ">🇦🇪</div>
+              <!-- Tooltip style label ALWAYS VISIBLE -->
+              <div style="
+                position:absolute; top:-25px; white-space:nowrap;
+                background:rgba(0,0,0,0.8); border:1px solid ${color}; color:${color};
+                padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold;
+                pointer-events:none;
+              ">阿布扎比本土安全监针 (风险 ${abuDhabiRisk.toFixed(0)})</div>
+            </div>
+          `,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+
+        const adMarker = L.marker([uaeLat, uaeLon], {
+          icon: abuDhabiIcon,
+          zIndexOffset: 150, // Higher than standard hotspots
+          interactive: false // It's mainly an overlay shield, not clickable
+        });
+
+        hotspotsLg.addLayer(adMarker);
       }
     }
 
