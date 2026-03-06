@@ -5,9 +5,9 @@ import type {
   ScraperSource, SystemStatus, LiveFlightsResponse, LiveShipsResponse,
 } from './types';
 
-const BASE = 'http://localhost:8100';
+const BASE = '';
 
-const http = axios.create({ baseURL: BASE, timeout: 15000 });
+const http = axios.create({ baseURL: BASE, timeout: 120000 });
 
 // ── News ──────────────────────────────────────────────────────────────────
 export const fetchNews = (params?: {

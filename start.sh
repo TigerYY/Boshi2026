@@ -109,7 +109,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # 将实际后端端口注入 vite proxy，避免硬编码 8100
-VITE_BACKEND_PORT=$BACKEND_PORT npm run dev -- --port "$FRONTEND_PORT" &
+VITE_BACKEND_PORT=$BACKEND_PORT npm run dev -- --port "$FRONTEND_PORT" --host &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "$ROOT_DIR/.frontend.pid"
 echo "  前端 PID: $FRONTEND_PID"

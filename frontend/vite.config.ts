@@ -10,6 +10,7 @@ export default defineConfig({
   server: {
     // 端口由 start.sh 通过 --port 参数传入，这里的值仅作为直接 npm run dev 时的默认值
     port: 5173,
+    host: true,
     strictPort: true, // 严格使用指定端口，不自动递增（start.sh 已保证传入的端口空闲）
     proxy: {
       '/api': {
