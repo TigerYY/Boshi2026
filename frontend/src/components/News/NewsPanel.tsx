@@ -103,7 +103,7 @@ export default function NewsPanel({ onNewsSelect }: Props) {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    fetchLatestReport().then(r => { if ('id' in r) setReport(r); }).catch(() => {});
+    fetchLatestReport().then(r => { if ('id' in r) setReport(r); }).catch(() => { });
   }, []);
 
   const handleGenerate = async () => {
@@ -238,126 +238,126 @@ export default function NewsPanel({ onNewsSelect }: Props) {
             minHeight: 0,
             transition: 'flex 0.25s ease',
           }}>
-        {/* Header row */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', cursor: 'pointer', gap: 8, flexShrink: 0 }}
-          onClick={() => setSummaryExpanded(e => !e)}>
-          <span style={{ fontSize: 10, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            ⚔ AI 战场综述
-          </span>
-          {report && <IntensityBadge score={report.intensity_score} />}
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 9, color: '#334455' }}>{summaryExpanded ? '▲ 收起' : '▼ 展开'}</span>
-        </div>
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', cursor: 'pointer', gap: 8, flexShrink: 0 }}
+              onClick={() => setSummaryExpanded(e => !e)}>
+              <span style={{ fontSize: 10, color: '#00d4ff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                ⚔ AI 战场综述
+              </span>
+              {report && <IntensityBadge score={report.intensity_score} />}
+              <div style={{ flex: 1 }} />
+              <span style={{ fontSize: 9, color: '#334455' }}>{summaryExpanded ? '▲ 收起' : '▼ 展开'}</span>
+            </div>
 
-        {summaryExpanded && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-            {report ? (
-              <>
-                {/* Intensity gauge */}
-                <IntensityGauge score={report.intensity_score} />
+            {summaryExpanded && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+                {report ? (
+                  <>
+                    {/* Intensity gauge */}
+                    <IntensityGauge score={report.intensity_score} />
 
-                {/* Main summary */}
-                <div>
-                  <SectionLabel>综合态势</SectionLabel>
-                  <div style={{
-                    fontSize: 11, color: '#a8b8cc', lineHeight: 1.85,
-                    padding: '10px 12px', background: '#0a0e14',
-                    border: '1px solid #1e2d40', borderRadius: 4,
-                  }}>
-                    {report.content || '暂无综述内容'}
-                  </div>
-                </div>
+                    {/* Main summary */}
+                    <div>
+                      <SectionLabel>综合态势</SectionLabel>
+                      <div style={{
+                        fontSize: 11, color: '#a8b8cc', lineHeight: 1.85,
+                        padding: '10px 12px', background: '#0a0e14',
+                        border: '1px solid #1e2d40', borderRadius: 4,
+                      }}>
+                        {report.content || '暂无综述内容'}
+                      </div>
+                    </div>
 
-                {/* Key developments */}
-                {report.key_developments && report.key_developments.length > 0 && (
-                  <div>
-                    <SectionLabel>关键进展</SectionLabel>
-                    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {report.key_developments.map((d, i) => (
-                        <li key={i} style={{
-                          display: 'flex', gap: 8, padding: '6px 10px',
-                          background: '#0d1520', border: '1px solid #1e2d40', borderRadius: 3,
-                          fontSize: 11, color: '#8b9ab0', lineHeight: 1.6,
-                        }}>
-                          <span style={{ color: '#00d4ff', fontWeight: 700, flexShrink: 0, fontSize: 10, marginTop: 1 }}>
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                          {d}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                    {/* Key developments */}
+                    {report.key_developments && report.key_developments.length > 0 && (
+                      <div>
+                        <SectionLabel>关键进展</SectionLabel>
+                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {report.key_developments.map((d, i) => (
+                            <li key={i} style={{
+                              display: 'flex', gap: 8, padding: '6px 10px',
+                              background: '#0d1520', border: '1px solid #1e2d40', borderRadius: 3,
+                              fontSize: 11, color: '#8b9ab0', lineHeight: 1.6,
+                            }}>
+                              <span style={{ color: '#00d4ff', fontWeight: 700, flexShrink: 0, fontSize: 10, marginTop: 1 }}>
+                                {String(i + 1).padStart(2, '0')}
+                              </span>
+                              {d}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-                {/* Hotspots */}
-                {report.hotspots && report.hotspots.length > 0 && (
-                  <div>
-                    <SectionLabel>热点区域</SectionLabel>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {report.hotspots.slice(0, 4).map((h, i) => (
-                        <div key={i} style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '5px 10px', background: '#0d1520',
-                          border: `1px solid ${intensityColor(h.score)}33`, borderRadius: 3,
-                        }}>
-                          <span style={{
-                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                            background: intensityColor(h.score),
-                          }} />
-                          <span style={{ fontSize: 11, color: '#c9d1d9', fontWeight: 600, minWidth: 60 }}>{h.name}</span>
-                          <span style={{ fontSize: 10, color: '#667788', flex: 1, lineHeight: 1.4 }}>{h.reason}</span>
-                          <span style={{ fontSize: 10, color: intensityColor(h.score), fontWeight: 700, flexShrink: 0 }}>
-                            {h.score.toFixed(1)}
-                          </span>
+                    {/* Hotspots */}
+                    {report.hotspots && report.hotspots.length > 0 && (
+                      <div>
+                        <SectionLabel>热点区域</SectionLabel>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {report.hotspots.slice(0, 4).map((h, i) => (
+                            <div key={i} style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              padding: '5px 10px', background: '#0d1520',
+                              border: `1px solid ${intensityColor(h.score)}33`, borderRadius: 3,
+                            }}>
+                              <span style={{
+                                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                background: intensityColor(h.score),
+                              }} />
+                              <span style={{ fontSize: 11, color: '#c9d1d9', fontWeight: 600, minWidth: 60 }}>{h.name}</span>
+                              <span style={{ fontSize: 10, color: '#667788', flex: 1, lineHeight: 1.4 }}>{h.reason}</span>
+                              <span style={{ fontSize: 10, color: intensityColor(h.score), fontWeight: 700, flexShrink: 0 }}>
+                                {h.score.toFixed(1)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    )}
+
+                    {/* Outlook */}
+                    {report.outlook && (
+                      <div>
+                        <SectionLabel>态势研判</SectionLabel>
+                        <div style={{
+                          fontSize: 11, color: '#9c66ff', lineHeight: 1.75,
+                          padding: '8px 12px', background: '#0d0a1e',
+                          border: '1px solid #9c66ff33', borderRadius: 4,
+                          fontStyle: 'italic',
+                        }}>
+                          {report.outlook}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer: generated_at */}
+                    {report.generated_at && (
+                      <div style={{ fontSize: 9, color: '#334455' }}>
+                        生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#334455', padding: '10px 0' }}>暂无分析报告，点击下方按钮生成</div>
                 )}
 
-                {/* Outlook */}
-                {report.outlook && (
-                  <div>
-                    <SectionLabel>态势研判</SectionLabel>
-                    <div style={{
-                      fontSize: 11, color: '#9c66ff', lineHeight: 1.75,
-                      padding: '8px 12px', background: '#0d0a1e',
-                      border: '1px solid #9c66ff33', borderRadius: 4,
-                      fontStyle: 'italic',
-                    }}>
-                      {report.outlook}
-                    </div>
-                  </div>
-                )}
-
-                {/* Footer: generated_at */}
-                {report.generated_at && (
-                  <div style={{ fontSize: 9, color: '#334455' }}>
-                    生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ fontSize: 11, color: '#334455', padding: '10px 0' }}>暂无分析报告，点击下方按钮生成</div>
+                <button onClick={handleGenerate} disabled={generating}
+                  style={{
+                    width: '100%', padding: '7px', fontSize: 11, cursor: 'pointer',
+                    background: generating ? '#1e2d40' : '#00d4ff11',
+                    border: `1px solid ${generating ? '#1e2d40' : '#00d4ff'}`,
+                    color: generating ? '#445566' : '#00d4ff',
+                    borderRadius: 3, fontFamily: 'inherit', flexShrink: 0,
+                  }}>
+                  {generating ? '⟳ AI 分析中...' : '⚡ 立即生成分析'}
+                </button>
+              </div>
             )}
-
-            <button onClick={handleGenerate} disabled={generating}
-              style={{
-                width: '100%', padding: '7px', fontSize: 11, cursor: 'pointer',
-                background: generating ? '#1e2d40' : '#00d4ff11',
-                border: `1px solid ${generating ? '#1e2d40' : '#00d4ff'}`,
-                color: generating ? '#445566' : '#00d4ff',
-                borderRadius: 3, fontFamily: 'inherit', flexShrink: 0,
-              }}>
-              {generating ? '⟳ AI 分析中...' : '⚡ 立即生成分析'}
-            </button>
           </div>
-        )}
-        </div>
-        {/* end AI 战场综述 */}
-      </>
-    )}
-    {/* end activeTab === 'news' */}
+          {/* end AI 战场综述 */}
+        </>
+      )}
+      {/* end activeTab === 'news' */}
     </div>
   );
 }
@@ -413,6 +413,14 @@ function NewsCard({ item, onSelect }: { item: NewsItem; onSelect?: (n: NewsItem)
   const catColor = CATEGORY_COLORS[item.category || 'other'] || '#888';
   const tierColor = SOURCE_TIER_COLORS[item.source_tier] || '#888';
 
+  let displaySummary = item.summary_zh || item.title || '';
+  const tags: string[] = [];
+  const tagMatch = displaySummary.match(/^\[Tags:\s*(.+?)\]\s*/);
+  if (tagMatch) {
+    tags.push(...tagMatch[1].split(',').map(s => s.trim()));
+    displaySummary = displaySummary.slice(tagMatch[0].length);
+  }
+
   return (
     <div
       onClick={() => { setExpanded(e => !e); onSelect?.(item); }}
@@ -446,9 +454,25 @@ function NewsCard({ item, onSelect }: { item: NewsItem; onSelect?: (n: NewsItem)
         )}
       </div>
 
+      {/* Tags row */}
+      {tags.length > 0 && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+          {tags.map((tag, i) => (
+            <span key={i} style={{
+              background: 'rgba(0, 212, 255, 0.1)', color: '#00d4ff',
+              border: '1px solid rgba(0, 212, 255, 0.3)',
+              padding: '1px 5px', fontSize: 9, borderRadius: 3, fontWeight: 600,
+              boxShadow: '0 0 4px rgba(0, 212, 255, 0.15)'
+            }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* 中文内容主体：优先显示 AI 摘要，无摘要时 fallback 至原标题 */}
       <div style={{ fontSize: 11, lineHeight: 1.6, color: '#c9d1d9', marginBottom: 3 }}>
-        {item.summary_zh || item.title}
+        {displaySummary}
       </div>
 
       {/* Expanded content */}

@@ -152,7 +152,7 @@ async def summarize_and_classify(title: str, content: str) -> dict:
     example = (
         '{"summary_zh":"以色列对伊朗纳坦兹核设施实施大规模空袭，使用F-35战机携带精确制导炸弹，'
         '伊朗防空系统成功拦截部分导弹但核心设施受损。美国为此次行动提供情报支持，'
-        '伊朗随即宣布进入战时状态并誓言报复。","category":"airstrike","is_breaking":true}'
+        '伊朗随即宣布进入战时状态并誓言报复。","category":"airstrike","is_breaking":true,"tags":["F-35战机","纳坦兹核设施","防空系统"]}'
     )
     prompt = (
         "你是军事情报分析师。请分析以下新闻，只返回JSON对象，不要任何其他文字。\n\n"
@@ -160,12 +160,13 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         f"{example}\n\n"
         f"待分析新闻：\n标题：{title}\n"
         f"内容：{content[:1500]}\n\n"
-        "只返回包含以下3个字段的JSON：\n"
-        '{"summary_zh":"<3-5句连贯的中文摘要，要有军事分析视角>","category":"<从以下选一个：airstrike|naval|land|missile|diplomacy|sanction|movement|other>","is_breaking":<true或false>}\n\n'
+        "只返回包含以下4个字段的JSON：\n"
+        '{"summary_zh":"<3-5句连贯的中文摘要，要有军事分析视角>","category":"<从以下选一个：airstrike|naval|land|missile|diplomacy|sanction|movement|other>","is_breaking":<true或false>,"tags":["<核心武器/地点/组织标签1（中文）>","<标签2>"]}\n\n'
         "规则：\n"
         "1. summary_zh必须是中文，3-5句话，包含关键军事信息\n"
-        "2. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
-        "3. 只输出JSON，不要解释，不要markdown代码块"
+        "2. tags数组提取文中出现的关键军事武器型号、战略地点或武装组织（最多提取4个，纯中文）\n"
+        "3. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
+        "4. 只输出JSON，不要解释，不要markdown代码块"
     )
     raw = ""
     try:
@@ -179,6 +180,10 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
         result.setdefault("is_breaking", False)
+        tags = result.get("tags", [])
+        if isinstance(tags, list) and tags:
+            tag_str = ", ".join(str(t) for t in tags[:4])
+            result["summary_zh"] = f"[Tags: {tag_str}] {result['summary_zh']}"
 
         # Confidence: assign by source tier based on title keywords rather than AI guessing
         source_hint = title.lower()
@@ -327,10 +332,10 @@ async def generate_daily_summary(
         f"事件列表:\n{events_text[:1500]}\n\n"
         f"宏观金融异动(若为空则忽略):\n{financial_text}\n\n"
         "只返回如下JSON（必须用真实分析结果替换尖括号及内容，不要输出其他文字或思考过程）:\n"
-        '{"summary":"<根据提供的信息生成300-400字的综合态势分析>","intensity_score":<根据局势评估的烈度分数，0.0到10.0的浮点数>,'
-        '"key_developments":["<关键事件进展1>","<关键事件进展2>","<关键事件进展3>"],'
-        '"hotspots":[{"name":"<热点名称>","lat":<真实纬度浮点数>,"lon":<真实经度浮点数>,"score":<该地点热度0-10>,"reason":"<热点原因描述>"}],'
-        '"outlook":"<50字左右的未来局势研判>",'
+        '{"summary":"<根据提供的信息生成300-400字的综合态势分析，必须纯中文>","intensity_score":<根据局势评估的烈度分数，0.0到10.0的浮点数>,'
+        '"key_developments":["<关键事件进展1（纯中文）>","<关键事件进展2（纯中文）>","<关键事件进展3（纯中文）>"],'
+        '"hotspots":[{"name":"<热点名称（纯中文）>","lat":<真实纬度浮点数>,"lon":<真实经度浮点数>,"score":<该地点热度0-10>,"reason":"<热点原因描述（纯中文）>"}],'
+        '"outlook":"<50字左右的未来局势研判，必须纯中文>",'
         '"escalation_probability":<未来48小时战争爆发升温概率百分比0到100的浮点数>,'
         '"market_correlation":"<50字描述地缘政治与当前比特币等金融避险资产走势的关联分析判断>"}\n\n'
         "重要提示：hotspots中lat/lon必须填写真实的中东地区地理坐标（纬度10-45，经度32-75），不能使用0.0。"
