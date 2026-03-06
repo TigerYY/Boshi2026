@@ -460,7 +460,21 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         for (const f of eventsGeo.features) {
           const e = f.properties as unknown as MilitaryEvent;
           const coords = f.geometry.coordinates as [number, number];
-          const marker = L.marker([coords[1], coords[0]], { icon: getEventIcon(e.event_type) });
+
+          // Deterministic Jittering: prevent overlapping markers for exact same city/coordinates
+          let offsetLat = 0;
+          let offsetLon = 0;
+          if (e.id) {
+            // Pseudo-random deterministic offsets based on unique event ID
+            const r1 = Math.abs(Math.sin(e.id * 12.9898 + 78.233) * 43758.5453) % 1;
+            const r2 = Math.abs(Math.cos(e.id * 4.1415 + 13.567) * 23456.7891) % 1;
+
+            // Spread radius max ~0.08 degrees to visually separate markers in the same city cluster
+            offsetLat = (r1 - 0.5) * 0.12;
+            offsetLon = (r2 - 0.5) * 0.12;
+          }
+
+          const marker = L.marker([coords[1] + offsetLat, coords[0] + offsetLon], { icon: getEventIcon(e.event_type) });
           marker.bindPopup(renderToStaticMarkup(<EventPopup event={e} />), { ...POPUP_OPTS, maxWidth: 300 });
           marker.on('click', () => onEventSelect?.(e));
           eventsLg.addLayer(marker);
