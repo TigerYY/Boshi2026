@@ -5,7 +5,7 @@ import type { AnalysisReport } from '../../api/types';
 
 interface MacroRadarProps {
     report: AnalysisReport | null;
-    financeData: { symbol: string; price: number; change: number } | null;
+    financeData: Record<string, { symbol: string; price: number; change: number }> | null;
 }
 
 export default function MacroRadar({ report, financeData }: MacroRadarProps) {
@@ -16,15 +16,12 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
 
     const accentColor = isHighRisk ? '#ff2244' : isMediumRisk ? '#ffdd00' : '#00ff88';
 
-    // Dummy sparkline data for BTC if we just have one point, normally we'd store historical array
-    // We'll just build a small visual aesthetic line based on 24h change
-    const buildSparkline = () => {
-        if (!financeData) return [];
-        const base = financeData.price;
-        const changeVal = (base * financeData.change) / 100;
+    // Helper to build a small visual aesthetic line based on 24h change
+    const buildSparkline = (data: { price: number; change: number } | undefined) => {
+        if (!data) return [];
+        const base = data.price;
+        const changeVal = (base * data.change) / 100;
         const startObj = base - changeVal;
-
-        // Create a smooth curve to current price for visuals
         return [
             { time: '24h ago', value: startObj },
             { time: '12h ago', value: startObj + (changeVal * 0.3) },
@@ -33,7 +30,11 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
         ];
     };
 
-    const btcTrend = buildSparkline();
+    const btc = financeData?.["BTC"];
+    const oil = financeData?.["OIL"];
+
+    const btcTrend = buildSparkline(btc);
+    const oilTrend = buildSparkline(oil);
 
     return (
         <div style={{
@@ -57,16 +58,6 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                     <div style={{ fontSize: '11px', color: '#8b9ab0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                         Macro Radar <span style={{ color: accentColor }}>●</span>
                     </div>
-                    {financeData && (
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#e6edf3', fontFamily: 'monospace' }}>
-                                {financeData.symbol} ${financeData.price.toLocaleString()}
-                            </div>
-                            <div style={{ fontSize: '10px', color: financeData.change >= 0 ? '#00ff88' : '#ff6b35' }}>
-                                {financeData.change > 0 ? '+' : ''}{financeData.change.toFixed(2)}%
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Escalation Probability Dial */}
@@ -110,32 +101,82 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                     {report?.market_correlation || "数据采集中...等待分析引擎获取下一个行情周期进行联动研判。"}
                 </div>
 
-                {/* BTC Mini Sparkline */}
-                {financeData && btcTrend.length > 0 && (
-                    <div style={{ marginTop: '16px', height: '40px', width: '100%', opacity: 0.8 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={btcTrend}>
-                                <defs>
-                                    <linearGradient id="btcGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={financeData.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor={financeData.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <YAxis domain={['dataMin', 'dataMax']} hide />
-                                <Tooltip
-                                    contentStyle={{ background: '#0a0e14', border: 'none', fontSize: '9px', padding: '4px' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    labelStyle={{ display: 'none' }}
-                                />
-                                <Area
-                                    type="monotone" dataKey="value"
-                                    stroke={financeData.change >= 0 ? '#00ff88' : '#ff6b35'}
-                                    fill="url(#btcGrad)" strokeWidth={1.5}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                )}
+                {/* Dual Asset Track Container */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                    {/* BTC Mini Sparkline */}
+                    {btc && btcTrend.length > 0 && (
+                        <div style={{ flex: 1, height: '50px', position: 'relative', background: 'rgba(0,0,0,0.2)', border: '1px solid #1e2d40', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', top: 4, left: 6, zIndex: 2 }}>
+                                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#e6edf3', fontFamily: 'monospace' }}>
+                                    {btc.symbol} ${btc.price.toLocaleString()}
+                                </div>
+                                <div style={{ fontSize: '8px', color: btc.change >= 0 ? '#00ff88' : '#ff6b35' }}>
+                                    {btc.change > 0 ? '+' : ''}{btc.change.toFixed(2)}%
+                                </div>
+                            </div>
+                            <div style={{ width: '100%', height: '100%', opacity: 0.8, paddingTop: '15px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={btcTrend}>
+                                        <defs>
+                                            <linearGradient id="btcGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor={btc.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor={btc.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <YAxis domain={['dataMin', 'dataMax']} hide />
+                                        <Tooltip
+                                            contentStyle={{ background: '#0a0e14', border: 'none', fontSize: '9px', padding: '4px' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            labelStyle={{ display: 'none' }}
+                                        />
+                                        <Area
+                                            type="monotone" dataKey="value"
+                                            stroke={btc.change >= 0 ? '#00ff88' : '#ff6b35'}
+                                            fill="url(#btcGrad)" strokeWidth={1.5}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* OIL Mini Sparkline */}
+                    {oil && oilTrend.length > 0 && (
+                        <div style={{ flex: 1, height: '50px', position: 'relative', background: 'rgba(0,0,0,0.2)', border: '1px solid #1e2d40', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', top: 4, left: 6, zIndex: 2 }}>
+                                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#e6edf3', fontFamily: 'monospace' }}>
+                                    {oil.symbol} ${oil.price.toLocaleString()}
+                                </div>
+                                <div style={{ fontSize: '8px', color: oil.change >= 0 ? '#00ff88' : '#ff6b35' }}>
+                                    {oil.change > 0 ? '+' : ''}{oil.change.toFixed(2)}%
+                                </div>
+                            </div>
+                            <div style={{ width: '100%', height: '100%', opacity: 0.8, paddingTop: '15px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={oilTrend}>
+                                        <defs>
+                                            <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor={oil.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor={oil.change >= 0 ? '#00ff88' : '#ff6b35'} stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <YAxis domain={['dataMin', 'dataMax']} hide />
+                                        <Tooltip
+                                            contentStyle={{ background: '#0a0e14', border: 'none', fontSize: '9px', padding: '4px' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            labelStyle={{ display: 'none' }}
+                                        />
+                                        <Area
+                                            type="monotone" dataKey="value"
+                                            stroke={oil.change >= 0 ? '#00ff88' : '#ff6b35'}
+                                            fill="url(#oilGrad)" strokeWidth={1.5}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

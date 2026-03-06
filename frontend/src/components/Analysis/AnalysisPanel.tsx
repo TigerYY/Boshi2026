@@ -19,7 +19,7 @@ const EVENT_LABELS: Record<string, string> = {
 
 interface AnalysisPanelProps {
   report: AnalysisReport | null;
-  financeData: { symbol: string; price: number; change: number } | null;
+  financeData: Record<string, { symbol: string; price: number; change: number }> | null;
 }
 
 export default function AnalysisPanel({ report, financeData }: AnalysisPanelProps) {

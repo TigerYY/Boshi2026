@@ -127,13 +127,22 @@ async def run_all_scrapers():
         })
 
 async def run_finance_scraper():
-    """Fetch BTC prices and broadcast to radar."""
+    """Fetch macro financial prices (BTC & Oil) and broadcast to radar."""
+    from scrapers.financial import fetch_btc_data, fetch_oil_data
+    
     async with AsyncSessionLocal() as db:
-        data = await fetch_btc_data(db)
-        if data:
+        btc_data = await fetch_btc_data(db)
+        oil_data = await fetch_oil_data(db)
+        
+        if btc_data or oil_data:
+            # We bundle the available data
+            payload = {}
+            if btc_data: payload["BTC"] = btc_data
+            if oil_data: payload["OIL"] = oil_data
+            
             await ws_manager.broadcast({
                 "type": "finance_update",
-                "data": data,
+                "data": payload,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             })
 
@@ -145,17 +154,30 @@ async def run_daily_analysis():
         async with AsyncSessionLocal() as db:
             since = datetime.now(timezone.utc) - timedelta(hours=24)
             
-            # Fetch latest BTC data to augment the prompt for macro escalation prediction
+            # Fetch latest BTC and OIL data to augment the prompt for macro escalation prediction
             from models.schemas import FinancialMetric
-            metric = await db.scalar(
+            
+            # 1. Fetch BTC Data
+            btc_metric = await db.scalar(
                 select(FinancialMetric)
                 .where(FinancialMetric.symbol == "BTCUSDT")
                 .order_by(FinancialMetric.fetched_at.desc())
                 .limit(1)
             )
+            
+            # 2. Fetch OIL Data
+            oil_metric = await db.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "WTI_OIL")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+            
             financial_text = ""
-            if metric:
-                financial_text = f"今日比特币(BTC/USD)避险市场数据: 当前价格 ${metric.price:,.2f}, 24小时涨跌幅 {metric.change_24h}%。"
+            if btc_metric:
+                financial_text += f"今日比特币(BTC/USD)避险市场数据: 当前价格 {btc_metric.price:,.2f}, 24小时涨跌幅 {btc_metric.change_24h}%\n"
+            if oil_metric:
+                financial_text += f"今日WTI原油大宗商品市场数据: 当前价格 {oil_metric.price:,.2f}, 24小时涨跌幅 {oil_metric.change_24h}%"
 
             news_result = await db.execute(
                 select(NewsItem)

@@ -52,6 +52,29 @@ async def trigger_analysis(
     async def _run():
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         async with __import__("models", fromlist=["AsyncSessionLocal"]).AsyncSessionLocal() as session:
+            
+            # Fetch latest BTC and OIL data to augment the manual generation prompt
+            from models.schemas import FinancialMetric
+            
+            btc_metric = await session.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "BTCUSDT")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+            oil_metric = await session.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "WTI_OIL")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+            
+            financial_text = ""
+            if btc_metric:
+                financial_text += f"今日比特币(BTC/USD)避险市场数据: 当前价格 {btc_metric.price:,.2f}, 24小时涨跌幅 {btc_metric.change_24h}%\n"
+            if oil_metric:
+                financial_text += f"今日WTI原油大宗商品市场数据: 当前价格 {oil_metric.price:,.2f}, 24小时涨跌幅 {oil_metric.change_24h}%"
+
             news_result = await session.execute(
                 select(NewsItem)
                 .where(NewsItem.processed == True, NewsItem.published_at >= since)
@@ -76,7 +99,7 @@ async def trigger_analysis(
             news_text = "\n".join(f"{_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
             events_text = "\n".join(f"{_fmt_dt(e.occurred_at)} [{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
-            result = await generate_daily_summary(events_text, news_text)
+            result = await generate_daily_summary(events_text, news_text, financial_text=financial_text)
             if result is None:
                 return  # no input data, skip writing hollow report
             report = AnalysisReport(

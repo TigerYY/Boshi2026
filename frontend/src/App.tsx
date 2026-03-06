@@ -20,7 +20,7 @@ export default function App() {
   const [newsBadge, setNewsBadge] = useState(0);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
   const [report, setReport] = useState<AnalysisReport | null>(null);
-  const [financeData, setFinanceData] = useState<{ symbol: string; price: number; change: number } | null>(null);
+  const [financeData, setFinanceData] = useState<Record<string, { symbol: string; price: number; change: number }> | null>(null);
   const [headerRefreshKey, setHeaderRefreshKey] = useState(0);
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
