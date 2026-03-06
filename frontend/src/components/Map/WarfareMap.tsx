@@ -478,8 +478,9 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     const requestId = ++lastTrackingRequestIdRef.current;
 
     // Determine if we should show history or live
-    // If timeline is active and currentDate is more than 3 mins in the past, use history
-    const isHistory = timelineActive && timelineTo && (Date.now() - timelineTo.getTime() > 3 * 60 * 1000);
+    // If timeline is active and selected time is > 30s away from "now", show history.
+    // We use a small threshold to allow "live" updates at the edge of the bar.
+    const isHistory = timelineActive && timelineTo && (Date.now() - timelineTo.getTime() > 30 * 1000);
     const timestamp = timelineTo ? timelineTo.toISOString() : new Date().toISOString();
 
     const acLg = layersRef.current.aircraft;
@@ -497,7 +498,10 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         const aircraft = data.aircraft || [];
         aircraft.filter((a: any) => !a.on_ground).forEach((ac: any) => {
           const m = L.marker([ac.lat, ac.lon], { icon: createAircraftIcon(ac.heading, ac.on_ground, ac.origin_country), zIndexOffset: 300 });
-          m.bindPopup(`<div style="font-size:11px;min-width:160px"><div style="font-weight:700;color:#00d4ff;margin-bottom:4px">✈ ${ac.callsign}</div><div style="color:#8b9ab0;font-size:10px">${ac.origin_country}</div>${isHistory && data.timestamp ? `<div style="font-size:9px;color:#556677;margin-top:4px">历史记录 (${new Date(data.timestamp).toLocaleString()})</div>` : ''}</div>`, { ...POPUP_OPTS });
+          const sourceLabel = isHistory && data.timestamp
+            ? `历史快照 (${new Date(data.timestamp).toLocaleString()})`
+            : "实时动态";
+          m.bindPopup(`<div style="font-size:11px;min-width:160px"><div style="font-weight:700;color:#00d4ff;margin-bottom:4px">✈ ${ac.callsign}</div><div style="color:#8b9ab0;font-size:10px">${ac.origin_country}</div><div style="font-size:9px;color:#556677;margin-top:4px">${sourceLabel}</div></div>`, { ...POPUP_OPTS });
           acLg.addLayer(m);
         });
       }
@@ -513,7 +517,10 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         const ships = data.ships || [];
         ships.forEach((sh: any) => {
           const m = L.marker([sh.lat, sh.lon], { icon: createShipIcon(sh.heading, sh.side, sh.ship_type), zIndexOffset: 250 });
-          m.bindPopup(`<div style="font-size:11px;min-width:180px"><div style="font-weight:700;color:#00ff88;margin-bottom:4px">${sh.name}</div>${isHistory && data.timestamp ? `<div style="font-size:9px;color:#556677;margin-top:2px">历史记录 (${new Date(data.timestamp).toLocaleString()})</div>` : ''}</div>`, { ...POPUP_OPTS });
+          const sourceLabel = isHistory && data.timestamp
+            ? `历史快照 (${new Date(data.timestamp).toLocaleString()})`
+            : "实时动态";
+          m.bindPopup(`<div style="font-size:11px;min-width:180px"><div style="font-weight:700;color:#00ff88;margin-bottom:4px">${sh.name}</div><div style="font-size:9px;color:#556677;margin-top:2px">${sourceLabel}</div></div>`, { ...POPUP_OPTS });
           shLg.addLayer(m);
         });
       }
@@ -521,6 +528,12 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       console.error('Tracking update error:', err);
     }
   }, [layers.aircraft, layers.ships, timelineActive, timelineTo]);
+
+  // Expose for manual/auto refresh
+  useEffect(() => {
+    (window as any).__warfareMapRefresh = updateLiveTracking;
+    return () => { delete (window as any).__warfareMapRefresh; };
+  }, [updateLiveTracking]);
 
   useEffect(() => {
     const vfLg = layersRef.current.video_feeds;

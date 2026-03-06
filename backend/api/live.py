@@ -357,17 +357,13 @@ async def get_history_flights(
     timestamp: datetime = Query(...),
     db: AsyncSessionLocal = Depends(get_db)
 ):
-    """Get the closest flight snapshot to the given timestamp."""
-    # Find the record closest to requested timestamp (within a 15-min window)
+    # Find the record closest to requested timestamp
+    from sqlalchemy import func
     stmt = (
         select(FlightRecord)
-        .where(FlightRecord.timestamp >= timestamp - timedelta(minutes=15))
-        .where(FlightRecord.timestamp <= timestamp + timedelta(minutes=15))
         .order_by(func.abs(func.julianday(FlightRecord.timestamp) - func.julianday(timestamp)))
         .limit(1)
     )
-    # Note: func.abs/julianday is SQLite specific for closest match
-    from sqlalchemy import func
     result = await db.execute(stmt)
     record = result.scalar_one_or_none()
     
@@ -390,8 +386,6 @@ async def get_history_ships(
     from sqlalchemy import func
     stmt = (
         select(VesselRecord)
-        .where(VesselRecord.timestamp >= timestamp - timedelta(minutes=15))
-        .where(VesselRecord.timestamp <= timestamp + timedelta(minutes=15))
         .order_by(func.abs(func.julianday(VesselRecord.timestamp) - func.julianday(timestamp)))
         .limit(1)
     )
