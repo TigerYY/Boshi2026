@@ -89,6 +89,10 @@ class AnalysisReport(Base):
     escalation_probability = Column(Float)            # 0-100% escalating chance
     market_correlation = Column(Text)                 # AI text report on market
 
+    # Custom UAE Risk module
+    abu_dhabi_risk = Column(Float, default=0.0)       # 0-100 UAE risk index
+    abu_dhabi_status = Column(Text)                   # AI written status on UAE security
+
 
 class ScraperStatus(Base):
     __tablename__ = "scraper_status"

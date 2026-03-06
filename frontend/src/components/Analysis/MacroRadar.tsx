@@ -90,9 +90,36 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                     </div>
                 </div>
 
+                {/* --- Abu Dhabi Risk Module --- */}
+                {report && (
+                    <div style={{
+                        marginTop: '16px', padding: '10px',
+                        background: 'linear-gradient(90deg, rgba(0,0,0,0.4) 0%, rgba(20,28,40,0.6) 100%)',
+                        borderLeft: `2px solid ${report.abu_dhabi_risk > 30 ? '#ff6b35' : '#00d4ff'}`,
+                        borderRadius: '0 4px 4px 0'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: '11px', color: '#e6edf3', fontWeight: 'bold' }}>
+                                🇦🇪 阿布扎比本土安全预警指数
+                            </div>
+                            <div style={{
+                                fontSize: '12px', fontWeight: '900', fontFamily: 'monospace',
+                                color: report.abu_dhabi_risk > 50 ? '#ff2244' : report.abu_dhabi_risk > 30 ? '#ffdd00' : '#00ff88',
+                                animation: report.abu_dhabi_risk > 50 ? 'pulse 1.5s infinite' : 'none',
+                                textShadow: report.abu_dhabi_risk > 50 ? '0 0 10px #ff2244aa' : 'none'
+                            }}>
+                                {report.abu_dhabi_risk.toFixed(1)} / 100
+                            </div>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#8b9ab0', marginTop: '6px', lineHeight: 1.4 }}>
+                            <strong style={{ color: report.abu_dhabi_risk > 30 ? '#ff6b35' : '#00d4ff' }}>AI 评级:</strong> {report.abu_dhabi_status || "安全雷达持续监测中。"}
+                        </div>
+                    </div>
+                )}
+
                 {/* Market Correlation AI Report */}
                 <div style={{
-                    marginTop: '12px', padding: '8px',
+                    marginTop: '16px', padding: '8px',
                     background: 'rgba(0, 212, 255, 0.05)',
                     borderLeft: '2px solid #00d4ff',
                     fontSize: '10px', color: '#a1b3c6', lineHeight: 1.5

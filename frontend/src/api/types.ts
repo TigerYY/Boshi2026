@@ -87,8 +87,10 @@ export interface AnalysisReport {
   hotspots: Array<{ name: string; lat: number; lon: number; score: number; reason: string }>;
   key_developments: string[];
   outlook: string;
-  escalation_probability?: number;
-  market_correlation?: string;
+  escalation_probability: number;
+  market_correlation: string;
+  abu_dhabi_risk: number;
+  abu_dhabi_status: string;
 }
 
 export interface IntensityTrend {

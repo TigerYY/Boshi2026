@@ -364,7 +364,9 @@ async def generate_daily_summary(
         '"hotspots":[{"name":"<热点名称（纯中文）>","lat":<真实纬度浮点数>,"lon":<真实经度浮点数>,"score":<该地点热度0-10>,"reason":"<热点原因描述（纯中文）>"}],'
         '"outlook":"<50字左右的未来局势研判，必须纯中文>",'
         '"escalation_probability":<未来48小时战争爆发升温概率百分比0到100的浮点数>,'
-        '"market_correlation":"<50字描述地缘政治与当前比特币等金融避险资产走势的关联分析判断>"}\n\n'
+        '"market_correlation":"<50字描述地缘政治与当前比特币等金融避险资产走势的关联分析判断>",'
+        '"abu_dhabi_risk":<阿联酋/阿布扎比地区受波及的安全风险指数，0-100的浮点数>,'
+        '"abu_dhabi_status":"<一句话用中文评价阿联酋与阿布扎比本土当前的安全状态及防空受袭威胁>"}\n\n'
         "重要提示：hotspots中lat/lon必须填写真实的中东地区地理坐标（纬度10-45，经度32-75），不能使用0.0。"
     )
     raw = ""
@@ -379,6 +381,8 @@ async def generate_daily_summary(
         result.setdefault("outlook", "")
         result.setdefault("escalation_probability", 50.0)
         result.setdefault("market_correlation", "目前地缘波动未对面盘金融产生显著溢出。")
+        result.setdefault("abu_dhabi_risk", 10.0)
+        result.setdefault("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。")
         result["intensity_score"] = max(0.0, min(10.0, float(result["intensity_score"])))
         # Fix any 0,0 or out-of-region coordinates from the AI
         result["hotspots"] = [_fix_hotspot_coords(h) for h in result["hotspots"]]
