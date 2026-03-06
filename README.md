@@ -25,6 +25,7 @@
 ## 技术栈
 
 ### 前端
+
 | 技术 | 版本 | 用途 |
 |---|---|---|
 | React | 19 | UI 框架 |
@@ -36,6 +37,7 @@
 | Axios | — | HTTP 客户端 |
 
 ### 后端
+
 | 技术 | 版本 | 用途 |
 |---|---|---|
 | FastAPI | 0.115 | API 框架 |
@@ -117,17 +119,19 @@ chmod +x start.sh
 ```
 
 脚本会自动完成：
+
 - 创建 Python 虚拟环境并安装依赖
 - 启动 FastAPI 后端（端口 `8100`）
 - 安装 npm 依赖并启动 Vite 前端（端口 `5173`）
 
 ### 3. 访问系统
 
-| 地址 | 说明 |
-|---|---|
-| http://localhost:5173 | 前端主界面 |
-| http://localhost:8100/docs | API 交互文档（Swagger UI） |
-| http://localhost:8100/redoc | API 文档（ReDoc） |
+| 服务 | 地址 (本地) | 说明 |
+| :--- | :--- | :--- |
+| **前端界面** | `http://localhost:5173` | 系统主入口 (远程访问请使用局域网 IP) |
+| **API 文档** | `http://localhost:8100/docs` | Swagger UI 交互文档 |
+| **数据监控** | `http://localhost:8100/api/health` | 检查后端运行状态 |
+| **API 文档** | `http://localhost:8100/redoc` | ReDoc 文档 |
 
 ---
 

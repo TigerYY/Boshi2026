@@ -746,12 +746,11 @@ chmod +x start.sh
 
 ### 5.3 访问地址
 
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| 前端 | <http://localhost:5173> | React 开发服务器 |
-| 后端 API | <http://localhost:8100> | FastAPI |
-| API 文档 | <http://localhost:8100/docs> | Swagger UI 自动生成 |
-| Ollama | <http://localhost:11434> | 本地 AI 推理 |
+| 服务 | 地址 (本地) | 说明 |
+| :--- | :--- | :--- |
+| **前端界面** | `http://localhost:5173` | 系统主入口 (远程访问请使用局域网 IP) |
+| **API 文档** | `http://localhost:8100/docs` | Swagger UI 交互文档 |
+| **数据监控** | `http://localhost:8100/api/health` | 检查后端运行状态 |
 
 ### 5.4 首次运行说明
 

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,257 +17,572 @@
       --bg: #020617;
       --panel: rgba(15, 23, 42, 0.85);
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       background-color: var(--bg);
       color: #e2e8f0;
       font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       overflow-x: hidden;
       background-image:
-        radial-gradient(circle at 20% 20%, rgba(14,165,233,0.04) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(168,85,247,0.04) 0%, transparent 50%),
-        linear-gradient(rgba(15,23,42,0.92) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(15,23,42,0.92) 1px, transparent 1px);
+        radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.04) 0%, transparent 50%),
+        linear-gradient(rgba(15, 23, 42, 0.92) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, 0.92) 1px, transparent 1px);
       background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
     }
+
     /* Glass panels */
     .glass {
       background: var(--panel);
       backdrop-filter: blur(12px);
-      border: 1px solid rgba(14,165,233,0.15);
+      border: 1px solid rgba(14, 165, 233, 0.15);
       border-radius: 6px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
+
     /* Corner brackets */
-    .bracket { position: relative; }
-    .bracket::before, .bracket::after {
-      content: ''; position: absolute; width: 12px; height: 12px;
-      border-color: var(--hud); border-style: solid; opacity: 0.6;
+    .bracket {
+      position: relative;
+    }
+
+    .bracket::before,
+    .bracket::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: var(--hud);
+      border-style: solid;
+      opacity: 0.6;
       transition: all 0.3s;
     }
-    .bracket::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
-    .bracket::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-    .bracket:hover::before, .bracket:hover::after { width: 18px; height: 18px; opacity: 1; }
+
+    .bracket::before {
+      top: 0;
+      left: 0;
+      border-width: 2px 0 0 2px;
+    }
+
+    .bracket::after {
+      bottom: 0;
+      right: 0;
+      border-width: 0 2px 2px 0;
+    }
+
+    .bracket:hover::before,
+    .bracket:hover::after {
+      width: 18px;
+      height: 18px;
+      opacity: 1;
+    }
+
     /* Nav */
     .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 20px; font-size: 13px; font-weight: 500;
-      color: #94a3b8; cursor: pointer; border: none; background: none;
-      width: 100%; text-align: left; border-left: 3px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #94a3b8;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      border-left: 3px solid transparent;
       transition: all 0.2s;
     }
-    .nav-item:hover { color: #e2e8f0; background: rgba(14,165,233,0.06); border-left-color: rgba(14,165,233,0.3); }
-    .nav-item.active { color: #38bdf8; background: rgba(14,165,233,0.1); border-left-color: var(--hud); }
+
+    .nav-item:hover {
+      color: #e2e8f0;
+      background: rgba(14, 165, 233, 0.06);
+      border-left-color: rgba(14, 165, 233, 0.3);
+    }
+
+    .nav-item.active {
+      color: #38bdf8;
+      background: rgba(14, 165, 233, 0.1);
+      border-left-color: var(--hud);
+    }
+
     /* Sections */
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-    ::-webkit-scrollbar-thumb { background: rgba(14,165,233,0.35); border-radius: 3px; }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(14, 165, 233, 0.35);
+      border-radius: 3px;
+    }
+
     /* Scan line */
     .scanline {
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(14,165,233,0.015) 2px, rgba(14,165,233,0.015) 4px);
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(14, 165, 233, 0.015) 2px, rgba(14, 165, 233, 0.015) 4px);
     }
+
     /* Tags */
     .tag {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600;
-      letter-spacing: 0.5px; text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
-    .tag-blue   { background: rgba(14,165,233,0.15); color: #38bdf8; border: 1px solid rgba(14,165,233,0.25); }
-    .tag-red    { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
-    .tag-green  { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
-    .tag-amber  { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
-    .tag-purple { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+
+    .tag-blue {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.25);
+    }
+
+    .tag-red {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    .tag-green {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+
+    .tag-amber {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .tag-purple {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.25);
+    }
+
     /* Table */
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th { background: rgba(14,165,233,0.1); color: #94a3b8; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
-    td { padding: 8px 12px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.04); }
-    tr:hover td { background: rgba(14,165,233,0.04); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th {
+      background: rgba(14, 165, 233, 0.1);
+      color: #94a3b8;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 8px 12px;
+      color: #cbd5e1;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    tr:hover td {
+      background: rgba(14, 165, 233, 0.04);
+    }
+
     /* Status dot */
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
-    .dot-live { width: 6px; height: 6px; border-radius: 50%; background: var(--alert); animation: pulse 1.5s infinite; display: inline-block; }
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .dot-live {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--alert);
+      animation: pulse 1.5s infinite;
+      display: inline-block;
+    }
+
     /* Progress bar */
-    .progress-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden; }
-    .progress-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+    .progress-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1s ease;
+    }
+
     /* Roadmap card states */
-    .roadmap-done   { border-left: 3px solid #22c55e; }
-    .roadmap-active { border-left: 3px solid #0ea5e9; }
-    .roadmap-plan   { border-left: 3px solid #a855f7; }
-    .roadmap-future { border-left: 3px solid #475569; }
+    .roadmap-done {
+      border-left: 3px solid #22c55e;
+    }
+
+    .roadmap-active {
+      border-left: 3px solid #0ea5e9;
+    }
+
+    .roadmap-plan {
+      border-left: 3px solid #a855f7;
+    }
+
+    .roadmap-future {
+      border-left: 3px solid #475569;
+    }
+
     /* Code block */
     pre {
-      background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 4px; padding: 12px 16px; font-size: 11px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace; overflow-x: auto;
-      color: #a5f3fc; line-height: 1.7;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      overflow-x: auto;
+      color: #a5f3fc;
+      line-height: 1.7;
     }
-    code { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-    .code-inline { background: rgba(14,165,233,0.12); color: #7dd3fc; padding: 1px 6px; border-radius: 3px; }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+
+    .code-inline {
+      background: rgba(14, 165, 233, 0.12);
+      color: #7dd3fc;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
     /* Chart containers */
-    .chart-wrap { position: relative; width: 100%; }
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+    }
+
     /* Arch node */
     .arch-node {
-      background: rgba(15,23,42,0.9); border: 1px solid rgba(14,165,233,0.2);
-      border-radius: 4px; padding: 8px 14px; font-size: 11px; text-align: center;
-      color: #94a3b8; white-space: nowrap;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(14, 165, 233, 0.2);
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 11px;
+      text-align: center;
+      color: #94a3b8;
+      white-space: nowrap;
     }
-    .arch-node.us { border-color: rgba(59,130,246,0.5); color: #60a5fa; }
-    .arch-node.ir { border-color: rgba(239,68,68,0.5);  color: #f87171; }
-    .arch-node.ai { border-color: rgba(34,197,94,0.5);  color: #4ade80; }
-    .arch-node.hl { border-color: rgba(14,165,233,0.5); color: #38bdf8; }
+
+    .arch-node.us {
+      border-color: rgba(59, 130, 246, 0.5);
+      color: #60a5fa;
+    }
+
+    .arch-node.ir {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #f87171;
+    }
+
+    .arch-node.ai {
+      border-color: rgba(34, 197, 94, 0.5);
+      color: #4ade80;
+    }
+
+    .arch-node.hl {
+      border-color: rgba(14, 165, 233, 0.5);
+      color: #38bdf8;
+    }
+
     /* Section heading */
     .sec-title {
-      font-size: 22px; font-weight: 700; color: #f8fafc; margin-bottom: 6px;
-      display: flex; align-items: center; gap: 10px;
+      font-size: 22px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    .sec-title::before { content: ''; display: inline-block; width: 3px; height: 20px; background: var(--hud); border-radius: 2px; }
-    .sec-sub { color: #64748b; font-size: 13px; max-width: 700px; line-height: 1.6; margin-bottom: 24px; }
+
+    .sec-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 20px;
+      background: var(--hud);
+      border-radius: 2px;
+    }
+
+    .sec-sub {
+      color: #64748b;
+      font-size: 13px;
+      max-width: 700px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
   </style>
 </head>
+
 <body class="flex h-screen overflow-hidden">
 
-<!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
-<aside class="w-60 flex-shrink-0 glass scanline flex flex-col border-r border-slate-800 z-20">
-  <!-- Logo -->
-  <div class="p-5 border-b border-slate-800">
-    <div class="flex items-center gap-3 mb-1">
-      <div style="width:32px;height:32px;border-radius:4px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);display:flex;align-items:center;justify-content:center;font-size:16px;">⚔</div>
-      <div>
-        <div style="font-size:16px;font-weight:700;color:#f87171;letter-spacing:1px;">BOSHI</div>
-        <div style="font-size:9px;color:#475569;letter-spacing:1.5px;">波斯 · 美伊战情系统</div>
-      </div>
-    </div>
-    <div class="flex gap-2 mt-3">
-      <span class="tag tag-green">v1.x LIVE</span>
-      <span class="tag tag-purple">2026-03</span>
-    </div>
-  </div>
-  <!-- Nav -->
-  <nav class="flex-1 overflow-y-auto py-3 space-y-0.5" id="nav">
-    <button class="nav-item active" onclick="tab('overview')"><span>🎯</span><span>系统概述</span></button>
-    <button class="nav-item" onclick="tab('features')"><span>🗺</span><span>核心功能</span></button>
-    <button class="nav-item" onclick="tab('arch')"><span>🏗</span><span>技术架构</span></button>
-    <button class="nav-item" onclick="tab('ai')"><span>🧠</span><span>AI 处理管道</span></button>
-    <button class="nav-item" onclick="tab('data')"><span>📡</span><span>数据来源</span></button>
-    <button class="nav-item" onclick="tab('api')"><span>🔌</span><span>API 参考</span></button>
-    <button class="nav-item" onclick="tab('roadmap')"><span>🚀</span><span>升级路线图</span></button>
-  </nav>
-  <!-- Footer -->
-  <div class="p-4 border-t border-slate-800 text-center" style="font-size:10px;color:#334155;">
-    <div><span class="dot-live"></span> 系统运行中</div>
-    <div class="mt-1" id="clock" style="color:#475569;font-family:monospace;"></div>
-    <div class="mt-2" style="color:#1e3a4a;">
-      <a href="/upgrade-plan.html" target="_blank" style="color:#334155;text-decoration:none;">↗ 旧版升级规划</a>
-    </div>
-  </div>
-</aside>
-
-<!-- ═══════════════════════ MAIN ═══════════════════════ -->
-<main class="flex-1 overflow-y-auto p-6 md:p-8 relative" style="background:rgba(2,6,23,0.6);">
-
-<!-- ══ 1. OVERVIEW ══ -->
-<section id="sec-overview" class="tab-content active space-y-6">
-  <div>
-    <div class="sec-title">系统概述</div>
-    <p class="sec-sub">BoShi 波斯（BOSHI）是一套面向军事爱好者的 <strong style="color:#38bdf8;">美伊战争态势实时展现系统</strong>，以中东 GIS 地图为主界面，融合多源 OSINT 情报抓取、本地 AI 分析与可视化战场态势展现。</p>
-  </div>
-
-  <!-- Stat cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="glass bracket p-4">
-      <div style="font-size:28px;font-weight:700;color:#38bdf8;">18+</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">OSINT 数据源</div>
-      <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">RSS + HTML 爬虫</div>
-    </div>
-    <div class="glass bracket p-4">
-      <div style="font-size:28px;font-weight:700;color:#4ade80;">2</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">本地 AI 模型</div>
-      <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">Ollama 驱动</div>
-    </div>
-    <div class="glass bracket p-4">
-      <div style="font-size:28px;font-weight:700;color:#f87171;">9</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">GIS 地图图层</div>
-      <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">实时/静态叠加</div>
-    </div>
-    <div class="glass bracket p-4">
-      <div style="font-size:28px;font-weight:700;color:#c084fc;">60</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">分钟自动刷新</div>
-      <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">+ 手动触发</div>
-    </div>
-  </div>
-
-  <!-- Architecture overview -->
-  <div class="glass p-6">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.8px;">▌ 整体数据流</div>
-    <div class="flex flex-wrap gap-3 items-center justify-center text-center">
-      <div>
-        <div style="font-size:10px;color:#475569;margin-bottom:6px;">情报来源</div>
-        <div class="flex flex-col gap-1">
-          <div class="arch-node">Reuters · BBC · Al Jazeera</div>
-          <div class="arch-node">ISW · War Zone · AP</div>
-          <div class="arch-node">OSINT Twitter · ADS-B</div>
+  <!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+  <aside class="w-60 flex-shrink-0 glass scanline flex flex-col border-r border-slate-800 z-20">
+    <!-- Logo -->
+    <div class="p-5 border-b border-slate-800">
+      <div class="flex items-center gap-3 mb-1">
+        <div
+          style="width:32px;height:32px;border-radius:4px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);display:flex;align-items:center;justify-content:center;font-size:16px;">
+          ⚔</div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#f87171;letter-spacing:1px;">BOSHI</div>
+          <div style="font-size:9px;color:#475569;letter-spacing:1.5px;">波斯 · 美伊战情系统</div>
         </div>
       </div>
-      <div style="color:#334155;font-size:20px;">→</div>
-      <div>
-        <div style="font-size:10px;color:#475569;margin-bottom:6px;">后端处理</div>
-        <div class="flex flex-col gap-1">
-          <div class="arch-node hl">FastAPI :8100</div>
-          <div class="arch-node ai">deepseek-r1:1.5b</div>
-          <div class="arch-node ai">qwen3-vl:8b</div>
-          <div class="arch-node hl">SQLite + APScheduler</div>
-        </div>
-      </div>
-      <div style="color:#334155;font-size:20px;">→</div>
-      <div>
-        <div style="font-size:10px;color:#475569;margin-bottom:6px;">实时推送</div>
-        <div class="flex flex-col gap-1">
-          <div class="arch-node hl">WebSocket /ws</div>
-          <div class="arch-node hl">REST APIs</div>
-        </div>
-      </div>
-      <div style="color:#334155;font-size:20px;">→</div>
-      <div>
-        <div style="font-size:10px;color:#475569;margin-bottom:6px;">前端展现</div>
-        <div class="flex flex-col gap-1">
-          <div class="arch-node hl">React + Leaflet</div>
-          <div class="arch-node">GIS 地图 · 情报 · 分析</div>
-          <div class="arch-node">时间轴 · HUD 界面</div>
-        </div>
+      <div class="flex gap-2 mt-3">
+        <span class="tag tag-green">v1.x LIVE</span>
+        <span class="tag tag-purple">2026-03</span>
       </div>
     </div>
-  </div>
+    <!-- Nav -->
+    <nav class="flex-1 overflow-y-auto py-3 space-y-0.5" id="nav">
+      <button class="nav-item active" onclick="tab('overview')"><span>🎯</span><span>系统概述</span></button>
+      <button class="nav-item" onclick="tab('features')"><span>🗺</span><span>核心功能</span></button>
+      <button class="nav-item" onclick="tab('arch')"><span>🏗</span><span>技术架构</span></button>
+      <button class="nav-item" onclick="tab('ai')"><span>🧠</span><span>AI 处理管道</span></button>
+      <button class="nav-item" onclick="tab('data')"><span>📡</span><span>数据来源</span></button>
+      <button class="nav-item" onclick="tab('api')"><span>🔌</span><span>API 参考</span></button>
+      <button class="nav-item" onclick="tab('roadmap')"><span>🚀</span><span>升级路线图</span></button>
+    </nav>
+    <!-- Footer -->
+    <div class="p-4 border-t border-slate-800 text-center" style="font-size:10px;color:#334155;">
+      <div><span class="dot-live"></span> 系统运行中</div>
+      <div class="mt-1" id="clock" style="color:#475569;font-family:monospace;"></div>
+      <div class="mt-2" style="color:#1e3a4a;">
+        <a href="/upgrade-plan.html" target="_blank" style="color:#334155;text-decoration:none;">↗ 旧版升级规划</a>
+      </div>
+    </div>
+  </aside>
 
-  <!-- Tech stack table -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 技术栈</div>
-    <table>
-      <thead><tr><th>层次</th><th>技术</th><th>版本</th><th>用途</th></tr></thead>
-      <tbody>
-        <tr><td><span class="tag tag-blue">后端</span></td><td>FastAPI + Uvicorn</td><td>0.115 / 0.32</td><td>REST API + WebSocket ASGI 服务器</td></tr>
-        <tr><td><span class="tag tag-blue">后端</span></td><td>SQLite + SQLAlchemy</td><td>2.0 async</td><td>本地轻量持久化 + 异步 ORM</td></tr>
-        <tr><td><span class="tag tag-blue">后端</span></td><td>APScheduler</td><td>3.10</td><td>定时爬取与分析任务</td></tr>
-        <tr><td><span class="tag tag-blue">后端</span></td><td>httpx + BeautifulSoup4 + feedparser</td><td>—</td><td>异步 HTTP 爬虫 + RSS/HTML 解析</td></tr>
-        <tr><td><span class="tag tag-green">AI</span></td><td>Ollama (本地)</td><td>最新</td><td>本地 AI 推理服务，无需 API Key</td></tr>
-        <tr><td><span class="tag tag-green">AI</span></td><td>deepseek-r1:1.5b</td><td>1.1 GB</td><td>新闻摘要翻译、分类、坐标提取（约 3s/条）</td></tr>
-        <tr><td><span class="tag tag-green">AI</span></td><td>qwen3-vl:8b</td><td>6.1 GB</td><td>战场综合报告生成、图像军事分析</td></tr>
-        <tr><td><span class="tag tag-amber">前端</span></td><td>React + TypeScript</td><td>19 / 5.9</td><td>UI 组件树</td></tr>
-        <tr><td><span class="tag tag-amber">前端</span></td><td>Leaflet + react-leaflet</td><td>1.9 / 5</td><td>交互式 GIS 地图渲染</td></tr>
-        <tr><td><span class="tag tag-amber">前端</span></td><td>Recharts</td><td>3</td><td>烈度趋势图 + 事件分类饼图</td></tr>
-        <tr><td><span class="tag tag-amber">前端</span></td><td>Tailwind CSS + Vite</td><td>3 / 7</td><td>工具类样式 + 热重载开发服务器</td></tr>
-        <tr><td><span class="tag tag-purple">数据</span></td><td>CartoDB DarkMatter</td><td>—</td><td>原生深色军事风格底图</td></tr>
-        <tr><td><span class="tag tag-purple">数据</span></td><td>OpenSky Network</td><td>API v2</td><td>中东区域实时 ADS-B 航班追踪</td></tr>
-        <tr><td><span class="tag tag-purple">数据</span></td><td>RSSHub</td><td>公共实例</td><td>Twitter/X OSINT 账号 RSS 代理</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <!-- ═══════════════════════ MAIN ═══════════════════════ -->
+  <main class="flex-1 overflow-y-auto p-6 md:p-8 relative" style="background:rgba(2,6,23,0.6);">
 
-  <!-- Quick start -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 快速启动</div>
-    <pre># 前置：安装 Ollama 并拉取模型
+    <!-- ══ 1. OVERVIEW ══ -->
+    <section id="sec-overview" class="tab-content active space-y-6">
+      <div>
+        <div class="sec-title">系统概述</div>
+        <p class="sec-sub">BoShi 波斯（BOSHI）是一套面向军事爱好者的 <strong style="color:#38bdf8;">美伊战争态势实时展现系统</strong>，以中东 GIS
+          地图为主界面，融合多源 OSINT 情报抓取、本地 AI 分析与可视化战场态势展现。</p>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass bracket p-4">
+          <div style="font-size:28px;font-weight:700;color:#38bdf8;">18+</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">OSINT 数据源</div>
+          <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">RSS + HTML 爬虫</div>
+        </div>
+        <div class="glass bracket p-4">
+          <div style="font-size:28px;font-weight:700;color:#4ade80;">2</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">本地 AI 模型</div>
+          <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">Ollama 驱动</div>
+        </div>
+        <div class="glass bracket p-4">
+          <div style="font-size:28px;font-weight:700;color:#f87171;">9</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">GIS 地图图层</div>
+          <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">实时/静态叠加</div>
+        </div>
+        <div class="glass bracket p-4">
+          <div style="font-size:28px;font-weight:700;color:#c084fc;">60</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;">分钟自动刷新</div>
+          <div style="font-size:10px;color:#1e3a4a;margin-top:4px;">+ 手动触发</div>
+        </div>
+      </div>
+
+      <!-- Architecture overview -->
+      <div class="glass p-6">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 整体数据流</div>
+        <div class="flex flex-wrap gap-3 items-center justify-center text-center">
+          <div>
+            <div style="font-size:10px;color:#475569;margin-bottom:6px;">情报来源</div>
+            <div class="flex flex-col gap-1">
+              <div class="arch-node">Reuters · BBC · Al Jazeera</div>
+              <div class="arch-node">ISW · War Zone · AP</div>
+              <div class="arch-node">OSINT Twitter · ADS-B</div>
+            </div>
+          </div>
+          <div style="color:#334155;font-size:20px;">→</div>
+          <div>
+            <div style="font-size:10px;color:#475569;margin-bottom:6px;">后端处理</div>
+            <div class="flex flex-col gap-1">
+              <div class="arch-node hl">FastAPI :8100</div>
+              <div class="arch-node ai">deepseek-r1:1.5b</div>
+              <div class="arch-node ai">qwen3-vl:8b</div>
+              <div class="arch-node hl">SQLite + APScheduler</div>
+            </div>
+          </div>
+          <div style="color:#334155;font-size:20px;">→</div>
+          <div>
+            <div style="font-size:10px;color:#475569;margin-bottom:6px;">实时推送</div>
+            <div class="flex flex-col gap-1">
+              <div class="arch-node hl">WebSocket /ws</div>
+              <div class="arch-node hl">REST APIs</div>
+            </div>
+          </div>
+          <div style="color:#334155;font-size:20px;">→</div>
+          <div>
+            <div style="font-size:10px;color:#475569;margin-bottom:6px;">前端展现</div>
+            <div class="flex flex-col gap-1">
+              <div class="arch-node hl">React + Leaflet</div>
+              <div class="arch-node">GIS 地图 · 情报 · 分析</div>
+              <div class="arch-node">时间轴 · HUD 界面</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tech stack table -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 技术栈</div>
+        <table>
+          <thead>
+            <tr>
+              <th>层次</th>
+              <th>技术</th>
+              <th>版本</th>
+              <th>用途</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag tag-blue">后端</span></td>
+              <td>FastAPI + Uvicorn</td>
+              <td>0.115 / 0.32</td>
+              <td>REST API + WebSocket ASGI 服务器</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">后端</span></td>
+              <td>SQLite + SQLAlchemy</td>
+              <td>2.0 async</td>
+              <td>本地轻量持久化 + 异步 ORM</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">后端</span></td>
+              <td>APScheduler</td>
+              <td>3.10</td>
+              <td>定时爬取与分析任务</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">后端</span></td>
+              <td>httpx + BeautifulSoup4 + feedparser</td>
+              <td>—</td>
+              <td>异步 HTTP 爬虫 + RSS/HTML 解析</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-green">AI</span></td>
+              <td>Ollama (本地)</td>
+              <td>最新</td>
+              <td>本地 AI 推理服务，无需 API Key</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-green">AI</span></td>
+              <td>deepseek-r1:1.5b</td>
+              <td>1.1 GB</td>
+              <td>新闻摘要翻译、分类、坐标提取（约 3s/条）</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-green">AI</span></td>
+              <td>qwen3-vl:8b</td>
+              <td>6.1 GB</td>
+              <td>战场综合报告生成、图像军事分析</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">前端</span></td>
+              <td>React + TypeScript</td>
+              <td>19 / 5.9</td>
+              <td>UI 组件树</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">前端</span></td>
+              <td>Leaflet + react-leaflet</td>
+              <td>1.9 / 5</td>
+              <td>交互式 GIS 地图渲染</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">前端</span></td>
+              <td>Recharts</td>
+              <td>3</td>
+              <td>烈度趋势图 + 事件分类饼图</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">前端</span></td>
+              <td>Tailwind CSS + Vite</td>
+              <td>3 / 7</td>
+              <td>工具类样式 + 热重载开发服务器</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">数据</span></td>
+              <td>CartoDB DarkMatter</td>
+              <td>—</td>
+              <td>原生深色军事风格底图</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">数据</span></td>
+              <td>OpenSky Network</td>
+              <td>API v2</td>
+              <td>中东区域实时 ADS-B 航班追踪</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">数据</span></td>
+              <td>RSSHub</td>
+              <td>公共实例</td>
+              <td>Twitter/X OSINT 账号 RSS 代理</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Quick start -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 快速启动</div>
+        <pre># 前置：安装 Ollama 并拉取模型
 ollama pull qwen3-vl:8b
 ollama pull deepseek-r1:1.5b
 
@@ -274,159 +590,227 @@ ollama pull deepseek-r1:1.5b
 cd BoShi2025 && chmod +x start.sh && ./start.sh
 
 # 访问
-# 前端：  http://localhost:5173
+# 本地：  http://localhost:5173
+# 远程：  http://[局域网IP]:5173 (启动脚本会显示具体地址)
 # 后端API：http://localhost:8100/docs（Swagger UI）</pre>
-  </div>
-</section>
+      </div>
+    </section>
 
-<!-- ══ 2. FEATURES ══ -->
-<section id="sec-features" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">核心功能</div>
-    <p class="sec-sub">系统当前已实现的功能模块，涵盖 GIS 地图、情报系统、AI 分析、时间轴回放和实时追踪。</p>
-  </div>
+    <!-- ══ 2. FEATURES ══ -->
+    <section id="sec-features" class="tab-content space-y-6">
+      <div>
+        <div class="sec-title">核心功能</div>
+        <p class="sec-sub">系统当前已实现的功能模块，涵盖 GIS 地图、情报系统、AI 分析、时间轴回放和实时追踪。</p>
+      </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-    <!-- GIS Map -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">🗺</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#38bdf8;">GIS 战场地图</div>
-          <div style="font-size:10px;color:#475569;">CartoDB DarkMatter · Leaflet</div>
+        <!-- GIS Map -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">🗺</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#38bdf8;">GIS 战场地图</div>
+              <div style="font-size:10px;color:#475569;">CartoDB DarkMatter · Leaflet</div>
+            </div>
+          </div>
+          <ul
+            style="font-size:12px;color:#94a3b8;space-y:4px;list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">9 个图层组</strong>：美军单位、伊朗单位、代理武装、军事事件、控制区域、热点、实时航班、舰船动态、视频热点</li>
+            <li>✦ <strong style="color:#cbd5e1;">自定义图标</strong>：SVG 矢量图标，按兵种/阵营区分颜色</li>
+            <li>✦ <strong style="color:#cbd5e1;">动态热点圆圈</strong>：脉冲雷达动画，大小按危险评分缩放</li>
+            <li>✦ <strong style="color:#cbd5e1;">实时航班追踪</strong>：OpenSky Network ADS-B，60s 轮询</li>
+            <li>✦ <strong style="color:#cbd5e1;">视频热点</strong>：8 处战略要地内嵌 YouTube OSINT 频道最新视频</li>
+            <li>✦ <strong style="color:#cbd5e1;">冲突烈度叠加层</strong>：左下角 sparkline + 0-10 分实时显示</li>
+            <li>✦ <strong style="color:#cbd5e1;">图层控制面板</strong>：右上角 pill 切换，独立开/关每个图层</li>
+          </ul>
+        </div>
+
+        <!-- Intel Panel -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">📰</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#4ade80;">情报面板</div>
+              <div style="font-size:10px;color:#475569;">NewsPanel · OSINT Twitter</div>
+            </div>
+          </div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">双标签</strong>：情报新闻 / OSINT 推文（X/Twitter 嵌入时间线）</li>
+            <li>✦ <strong style="color:#cbd5e1;">7 类过滤</strong>：空袭、导弹、海战、地面、外交、制裁、全部</li>
+            <li>✦ <strong style="color:#cbd5e1;">AI 中文摘要</strong>：每条新闻 3-5 句中文摘要，置信度评分</li>
+            <li>✦ <strong style="color:#cbd5e1;">来源分级</strong>：Tier 1（青色）/ Tier 2（紫色）/ Tier 3（琥珀色）</li>
+            <li>✦ <strong style="color:#cbd5e1;">突发标记</strong>：● 突发 红色徽章，优先排列</li>
+            <li>✦ <strong style="color:#cbd5e1;">图像分析</strong>：突发新闻配图由 qwen3-vl 视觉模型解析</li>
+            <li>✦ <strong style="color:#cbd5e1;">AI 战场综述</strong>：展开占据 70%，含烈度仪表、态势全文、关键进展</li>
+          </ul>
+        </div>
+
+        <!-- Analysis -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">📊</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#fbbf24;">历史分析</div>
+              <div style="font-size:10px;color:#475569;">AnalysisPanel · Recharts</div>
+            </div>
+          </div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">烈度趋势图</strong>：7/14/30 天日均冲突烈度时序曲线</li>
+            <li>✦ <strong style="color:#cbd5e1;">事件类型分布</strong>：圆环饼图，8 种事件类型占比</li>
+            <li>✦ <strong style="color:#cbd5e1;">统计卡片</strong>：平均烈度 · 事件总数</li>
+          </ul>
+        </div>
+
+        <!-- Timeline -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">⏱</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#c084fc;">时间轴回放</div>
+              <div style="font-size:10px;color:#475569;">Timeline · 45天历史</div>
+            </div>
+          </div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">拖拽定位</strong>：鼠标拖拽时间游标，地图实时过滤至指定时间点</li>
+            <li>✦ <strong style="color:#cbd5e1;">自动播放</strong>：0.5× / 1× / 2× / 4× 速度，每步推进 6 小时</li>
+            <li>✦ <strong style="color:#cbd5e1;">事件点绘制</strong>：轨道上按严重程度绘制彩色圆点，过去/未来透明度区分</li>
+            <li>✦ <strong style="color:#cbd5e1;">防抖刷新</strong>：拖拽期间防抖 800ms，避免 API 洪泛</li>
+          </ul>
+        </div>
+
+        <!-- Control -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">⚙️</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#94a3b8;">系统控制</div>
+              <div style="font-size:10px;color:#475569;">ControlPanel · APScheduler</div>
+            </div>
+          </div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">自动更新</strong>：60 分钟定时全量爬取 + AI 处理 + 报告生成</li>
+            <li>✦ <strong style="color:#cbd5e1;">手动刷新</strong>：三段式进度显示（抓取→分析→生成报告）</li>
+            <li>✦ <strong style="color:#cbd5e1;">来源管理</strong>：按 Tier 分组，每个来源可独立启停、查看最后成功时间</li>
+            <li>✦ <strong style="color:#cbd5e1;">系统统计</strong>：新闻总数 · 事件总数 · 未处理数 · Ollama 状态</li>
+          </ul>
+        </div>
+
+        <!-- Header HUD -->
+        <div class="glass bracket p-5 space-y-3">
+          <div class="flex items-center gap-3">
+            <span style="font-size:22px;">🖥</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#f87171;">军事 HUD 界面</div>
+              <div style="font-size:10px;color:#475569;">Header · SidePanel · CSS 动画</div>
+            </div>
+          </div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">顶部 Header</strong>：LIVE 脉冲徽章、AI 状态、数据更新时间、通知 Ticker、UTC 时钟</li>
+            <li>✦ <strong style="color:#cbd5e1;">扫描线纹理</strong>：HUD panel CSS 重复渐变，强化军工视觉风格</li>
+            <li>✦ <strong style="color:#cbd5e1;">角落装饰</strong>：HUD 风格边角框，鼠标悬停展开动画</li>
+            <li>✦ <strong style="color:#cbd5e1;">WebSocket 实时</strong>：情报推送、AI 处理进度、报告更新全部实时推送</li>
+          </ul>
         </div>
       </div>
-      <ul style="font-size:12px;color:#94a3b8;space-y:4px;list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">9 个图层组</strong>：美军单位、伊朗单位、代理武装、军事事件、控制区域、热点、实时航班、舰船动态、视频热点</li>
-        <li>✦ <strong style="color:#cbd5e1;">自定义图标</strong>：SVG 矢量图标，按兵种/阵营区分颜色</li>
-        <li>✦ <strong style="color:#cbd5e1;">动态热点圆圈</strong>：脉冲雷达动画，大小按危险评分缩放</li>
-        <li>✦ <strong style="color:#cbd5e1;">实时航班追踪</strong>：OpenSky Network ADS-B，60s 轮询</li>
-        <li>✦ <strong style="color:#cbd5e1;">视频热点</strong>：8 处战略要地内嵌 YouTube OSINT 频道最新视频</li>
-        <li>✦ <strong style="color:#cbd5e1;">冲突烈度叠加层</strong>：左下角 sparkline + 0-10 分实时显示</li>
-        <li>✦ <strong style="color:#cbd5e1;">图层控制面板</strong>：右上角 pill 切换，独立开/关每个图层</li>
-      </ul>
-    </div>
 
-    <!-- Intel Panel -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">📰</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#4ade80;">情报面板</div>
-          <div style="font-size:10px;color:#475569;">NewsPanel · OSINT Twitter</div>
-        </div>
+      <!-- Map layers chart -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ GIS 图层列表</div>
+        <table>
+          <thead>
+            <tr>
+              <th>图层</th>
+              <th>图标</th>
+              <th>颜色</th>
+              <th>数据来源</th>
+              <th>更新频率</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>美军单位</td>
+              <td>✈</td>
+              <td><span style="color:#1a6fb5;">■</span> 蓝色</td>
+              <td>seed_data / 新闻提取</td>
+              <td>手动</td>
+            </tr>
+            <tr>
+              <td>伊朗单位</td>
+              <td>⚔</td>
+              <td><span style="color:#cc2222;">■</span> 红色</td>
+              <td>seed_data / 新闻提取</td>
+              <td>手动</td>
+            </tr>
+            <tr>
+              <td>代理武装</td>
+              <td>★</td>
+              <td><span style="color:#cc8800;">■</span> 橙色</td>
+              <td>seed_data / 新闻提取</td>
+              <td>手动</td>
+            </tr>
+            <tr>
+              <td>军事事件</td>
+              <td>⚡</td>
+              <td><span style="color:#00d4ff;">■</span> 青色</td>
+              <td>AI 自动提取</td>
+              <td>每 60 分钟</td>
+            </tr>
+            <tr>
+              <td>控制区域</td>
+              <td>▣</td>
+              <td><span style="color:#9c66ff;">■</span> 紫色</td>
+              <td>seed_data</td>
+              <td>手动</td>
+            </tr>
+            <tr>
+              <td>AI 热点</td>
+              <td>●</td>
+              <td><span style="color:#ff2244;">■</span> 红/橙/黄</td>
+              <td>qwen3-vl 战场报告</td>
+              <td>每 60 分钟</td>
+            </tr>
+            <tr>
+              <td>实时航班</td>
+              <td>▲</td>
+              <td><span style="color:#00d4ff;">■</span> 青/橙</td>
+              <td>OpenSky Network ADS-B</td>
+              <td>每 60 秒</td>
+            </tr>
+            <tr>
+              <td>舰船动态</td>
+              <td>◆</td>
+              <td><span style="color:#4ade80;">■</span> 绿/红</td>
+              <td>Demo + AIS（可配置）</td>
+              <td>每 60 秒</td>
+            </tr>
+            <tr>
+              <td>视频热点</td>
+              <td>📹</td>
+              <td><span style="color:#ff6b35;">■</span> 橙色</td>
+              <td>YouTube OSINT 频道</td>
+              <td>静态 8 处</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">双标签</strong>：情报新闻 / OSINT 推文（X/Twitter 嵌入时间线）</li>
-        <li>✦ <strong style="color:#cbd5e1;">7 类过滤</strong>：空袭、导弹、海战、地面、外交、制裁、全部</li>
-        <li>✦ <strong style="color:#cbd5e1;">AI 中文摘要</strong>：每条新闻 3-5 句中文摘要，置信度评分</li>
-        <li>✦ <strong style="color:#cbd5e1;">来源分级</strong>：Tier 1（青色）/ Tier 2（紫色）/ Tier 3（琥珀色）</li>
-        <li>✦ <strong style="color:#cbd5e1;">突发标记</strong>：● 突发 红色徽章，优先排列</li>
-        <li>✦ <strong style="color:#cbd5e1;">图像分析</strong>：突发新闻配图由 qwen3-vl 视觉模型解析</li>
-        <li>✦ <strong style="color:#cbd5e1;">AI 战场综述</strong>：展开占据 70%，含烈度仪表、态势全文、关键进展</li>
-      </ul>
-    </div>
+    </section>
 
-    <!-- Analysis -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">📊</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#fbbf24;">历史分析</div>
-          <div style="font-size:10px;color:#475569;">AnalysisPanel · Recharts</div>
-        </div>
+    <!-- ══ 3. ARCHITECTURE ══ -->
+    <section id="sec-arch" class="tab-content space-y-6">
+      <div>
+        <div class="sec-title">技术架构</div>
+        <p class="sec-sub">系统采用前后端分离架构，后端 FastAPI + SQLite 处理数据，前端 React + Leaflet 负责可视化展现，通过 WebSocket 实现实时双向通信。</p>
       </div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">烈度趋势图</strong>：7/14/30 天日均冲突烈度时序曲线</li>
-        <li>✦ <strong style="color:#cbd5e1;">事件类型分布</strong>：圆环饼图，8 种事件类型占比</li>
-        <li>✦ <strong style="color:#cbd5e1;">统计卡片</strong>：平均烈度 · 事件总数</li>
-      </ul>
-    </div>
 
-    <!-- Timeline -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">⏱</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#c084fc;">时间轴回放</div>
-          <div style="font-size:10px;color:#475569;">Timeline · 45天历史</div>
-        </div>
-      </div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">拖拽定位</strong>：鼠标拖拽时间游标，地图实时过滤至指定时间点</li>
-        <li>✦ <strong style="color:#cbd5e1;">自动播放</strong>：0.5× / 1× / 2× / 4× 速度，每步推进 6 小时</li>
-        <li>✦ <strong style="color:#cbd5e1;">事件点绘制</strong>：轨道上按严重程度绘制彩色圆点，过去/未来透明度区分</li>
-        <li>✦ <strong style="color:#cbd5e1;">防抖刷新</strong>：拖拽期间防抖 800ms，避免 API 洪泛</li>
-      </ul>
-    </div>
-
-    <!-- Control -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">⚙️</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#94a3b8;">系统控制</div>
-          <div style="font-size:10px;color:#475569;">ControlPanel · APScheduler</div>
-        </div>
-      </div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">自动更新</strong>：60 分钟定时全量爬取 + AI 处理 + 报告生成</li>
-        <li>✦ <strong style="color:#cbd5e1;">手动刷新</strong>：三段式进度显示（抓取→分析→生成报告）</li>
-        <li>✦ <strong style="color:#cbd5e1;">来源管理</strong>：按 Tier 分组，每个来源可独立启停、查看最后成功时间</li>
-        <li>✦ <strong style="color:#cbd5e1;">系统统计</strong>：新闻总数 · 事件总数 · 未处理数 · Ollama 状态</li>
-      </ul>
-    </div>
-
-    <!-- Header HUD -->
-    <div class="glass bracket p-5 space-y-3">
-      <div class="flex items-center gap-3">
-        <span style="font-size:22px;">🖥</span>
-        <div>
-          <div style="font-size:14px;font-weight:600;color:#f87171;">军事 HUD 界面</div>
-          <div style="font-size:10px;color:#475569;">Header · SidePanel · CSS 动画</div>
-        </div>
-      </div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:5px;">
-        <li>✦ <strong style="color:#cbd5e1;">顶部 Header</strong>：LIVE 脉冲徽章、AI 状态、数据更新时间、通知 Ticker、UTC 时钟</li>
-        <li>✦ <strong style="color:#cbd5e1;">扫描线纹理</strong>：HUD panel CSS 重复渐变，强化军工视觉风格</li>
-        <li>✦ <strong style="color:#cbd5e1;">角落装饰</strong>：HUD 风格边角框，鼠标悬停展开动画</li>
-        <li>✦ <strong style="color:#cbd5e1;">WebSocket 实时</strong>：情报推送、AI 处理进度、报告更新全部实时推送</li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- Map layers chart -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ GIS 图层列表</div>
-    <table>
-      <thead><tr><th>图层</th><th>图标</th><th>颜色</th><th>数据来源</th><th>更新频率</th></tr></thead>
-      <tbody>
-        <tr><td>美军单位</td><td>✈</td><td><span style="color:#1a6fb5;">■</span> 蓝色</td><td>seed_data / 新闻提取</td><td>手动</td></tr>
-        <tr><td>伊朗单位</td><td>⚔</td><td><span style="color:#cc2222;">■</span> 红色</td><td>seed_data / 新闻提取</td><td>手动</td></tr>
-        <tr><td>代理武装</td><td>★</td><td><span style="color:#cc8800;">■</span> 橙色</td><td>seed_data / 新闻提取</td><td>手动</td></tr>
-        <tr><td>军事事件</td><td>⚡</td><td><span style="color:#00d4ff;">■</span> 青色</td><td>AI 自动提取</td><td>每 60 分钟</td></tr>
-        <tr><td>控制区域</td><td>▣</td><td><span style="color:#9c66ff;">■</span> 紫色</td><td>seed_data</td><td>手动</td></tr>
-        <tr><td>AI 热点</td><td>●</td><td><span style="color:#ff2244;">■</span> 红/橙/黄</td><td>qwen3-vl 战场报告</td><td>每 60 分钟</td></tr>
-        <tr><td>实时航班</td><td>▲</td><td><span style="color:#00d4ff;">■</span> 青/橙</td><td>OpenSky Network ADS-B</td><td>每 60 秒</td></tr>
-        <tr><td>舰船动态</td><td>◆</td><td><span style="color:#4ade80;">■</span> 绿/红</td><td>Demo + AIS（可配置）</td><td>每 60 秒</td></tr>
-        <tr><td>视频热点</td><td>📹</td><td><span style="color:#ff6b35;">■</span> 橙色</td><td>YouTube OSINT 频道</td><td>静态 8 处</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ══ 3. ARCHITECTURE ══ -->
-<section id="sec-arch" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">技术架构</div>
-    <p class="sec-sub">系统采用前后端分离架构，后端 FastAPI + SQLite 处理数据，前端 React + Leaflet 负责可视化展现，通过 WebSocket 实现实时双向通信。</p>
-  </div>
-
-  <!-- Backend structure -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 后端目录结构</div>
-    <pre>backend/
+      <!-- Backend structure -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 后端目录结构</div>
+        <pre>backend/
 ├── main.py               # FastAPI 应用入口，lifespan 管理，WebSocket 端点
 ├── scheduler.py          # APScheduler 定时任务 + WebSocket ConnectionManager
 ├── seed_data.py          # 首次运行演示数据（19 军事单位 + 12 事件 + 4 控制区域）
@@ -450,12 +834,14 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
 └── scrapers/
     ├── base.py           # RawArticle 数据类、BaseScraper 抽象、RssScraper
     └── sources.py        # 18+ 具体爬虫 + ALL_SCRAPERS 注册列表</pre>
-  </div>
+      </div>
 
-  <!-- Frontend structure -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 前端目录结构</div>
-    <pre>frontend/src/
+      <!-- Frontend structure -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 前端目录结构</div>
+        <pre>frontend/src/
 ├── App.tsx               # 顶层组件，布局骨架，全局状态协调，WebSocket 监听
 ├── api/
 │   ├── client.ts         # Axios 实例 + 20 个 API 调用函数
@@ -483,123 +869,195 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
     └── UI/
         ├── Header.tsx            # 顶部 HUD 导航栏
         └── SidePanel.tsx         # 右侧标签面板容器</pre>
-  </div>
+      </div>
 
-  <!-- Data models -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 数据库模型（SQLite · 6 张表）</div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Data models -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 数据库模型（SQLite · 6 张表）</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div style="font-size:11px;color:#38bdf8;margin-bottom:6px;font-weight:600;">NewsItem（news）</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="code-inline">id</td>
+                  <td style="color:#64748b;">Integer PK</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">source / source_tier</td>
+                  <td style="color:#64748b;">来源 + 等级 1/2/3</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">title / url</td>
+                  <td style="color:#64748b;">原文标题 + 去重 URL</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">summary_zh</td>
+                  <td style="color:#64748b;">AI 中文摘要 3-5 句</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">category / confidence</td>
+                  <td style="color:#64748b;">8 类分类 + 置信度</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">locations</td>
+                  <td style="color:#64748b;">JSON [{name, lat, lon}]</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">is_breaking / processed</td>
+                  <td style="color:#64748b;">突发标记 + AI 处理状态</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#f87171;margin-bottom:6px;font-weight:600;">MilitaryEvent（events）</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="code-inline">event_type</td>
+                  <td style="color:#64748b;">airstrike/missile/naval/land/…</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">side</td>
+                  <td style="color:#64748b;">us / iran / proxy / neutral</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">title / description</td>
+                  <td style="color:#64748b;">标题 + 详细描述（中文）</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">lat / lon</td>
+                  <td style="color:#64748b;">事件坐标（中东区域校验）</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">severity</td>
+                  <td style="color:#64748b;">严重程度 1-5</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">confirmed</td>
+                  <td style="color:#64748b;">confidence ≥ 0.7 时为 True</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#fbbf24;margin-bottom:6px;font-weight:600;">AnalysisReport（analysis）</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="code-inline">content</td>
+                  <td style="color:#64748b;">300-400 字态势分析（中文）</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">intensity_score</td>
+                  <td style="color:#64748b;">冲突烈度 0-10</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">hotspots</td>
+                  <td style="color:#64748b;">JSON [{name,lat,lon,score,reason}]</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">key_developments</td>
+                  <td style="color:#64748b;">关键进展要点数组</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">outlook</td>
+                  <td style="color:#64748b;">50 字未来研判</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#c084fc;margin-bottom:6px;font-weight:600;">MilitaryUnit · ControlZone ·
+              ScraperStatus</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="code-inline">MilitaryUnit</td>
+                  <td style="color:#64748b;">19 个美/伊/代理力量，含坐标、状态、兵力</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">ControlZone</td>
+                  <td style="color:#64748b;">4 个 GeoJSON 控制区（巡逻/禁区/封锁/控制）</td>
+                </tr>
+                <tr>
+                  <td class="code-inline">ScraperStatus</td>
+                  <td style="color:#64748b;">18+ 爬虫状态跟踪（最后运行/成功时间/错误）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 4. AI PIPELINE ══ -->
+    <section id="sec-ai" class="tab-content space-y-6">
       <div>
-        <div style="font-size:11px;color:#38bdf8;margin-bottom:6px;font-weight:600;">NewsItem（news）</div>
-        <table>
-          <tbody>
-            <tr><td class="code-inline">id</td><td style="color:#64748b;">Integer PK</td></tr>
-            <tr><td class="code-inline">source / source_tier</td><td style="color:#64748b;">来源 + 等级 1/2/3</td></tr>
-            <tr><td class="code-inline">title / url</td><td style="color:#64748b;">原文标题 + 去重 URL</td></tr>
-            <tr><td class="code-inline">summary_zh</td><td style="color:#64748b;">AI 中文摘要 3-5 句</td></tr>
-            <tr><td class="code-inline">category / confidence</td><td style="color:#64748b;">8 类分类 + 置信度</td></tr>
-            <tr><td class="code-inline">locations</td><td style="color:#64748b;">JSON [{name, lat, lon}]</td></tr>
-            <tr><td class="code-inline">is_breaking / processed</td><td style="color:#64748b;">突发标记 + AI 处理状态</td></tr>
-          </tbody>
-        </table>
+        <div class="sec-title">AI 处理管道</div>
+        <p class="sec-sub">系统采用两阶段 AI 策略：快速小模型处理海量新闻，大型视觉语言模型生成战场综合报告，全部在本地 Ollama 运行，无需联网 API。</p>
       </div>
-      <div>
-        <div style="font-size:11px;color:#f87171;margin-bottom:6px;font-weight:600;">MilitaryEvent（events）</div>
-        <table>
-          <tbody>
-            <tr><td class="code-inline">event_type</td><td style="color:#64748b;">airstrike/missile/naval/land/…</td></tr>
-            <tr><td class="code-inline">side</td><td style="color:#64748b;">us / iran / proxy / neutral</td></tr>
-            <tr><td class="code-inline">title / description</td><td style="color:#64748b;">标题 + 详细描述（中文）</td></tr>
-            <tr><td class="code-inline">lat / lon</td><td style="color:#64748b;">事件坐标（中东区域校验）</td></tr>
-            <tr><td class="code-inline">severity</td><td style="color:#64748b;">严重程度 1-5</td></tr>
-            <tr><td class="code-inline">confirmed</td><td style="color:#64748b;">confidence ≥ 0.7 时为 True</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <div style="font-size:11px;color:#fbbf24;margin-bottom:6px;font-weight:600;">AnalysisReport（analysis）</div>
-        <table>
-          <tbody>
-            <tr><td class="code-inline">content</td><td style="color:#64748b;">300-400 字态势分析（中文）</td></tr>
-            <tr><td class="code-inline">intensity_score</td><td style="color:#64748b;">冲突烈度 0-10</td></tr>
-            <tr><td class="code-inline">hotspots</td><td style="color:#64748b;">JSON [{name,lat,lon,score,reason}]</td></tr>
-            <tr><td class="code-inline">key_developments</td><td style="color:#64748b;">关键进展要点数组</td></tr>
-            <tr><td class="code-inline">outlook</td><td style="color:#64748b;">50 字未来研判</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <div style="font-size:11px;color:#c084fc;margin-bottom:6px;font-weight:600;">MilitaryUnit · ControlZone · ScraperStatus</div>
-        <table>
-          <tbody>
-            <tr><td class="code-inline">MilitaryUnit</td><td style="color:#64748b;">19 个美/伊/代理力量，含坐标、状态、兵力</td></tr>
-            <tr><td class="code-inline">ControlZone</td><td style="color:#64748b;">4 个 GeoJSON 控制区（巡逻/禁区/封锁/控制）</td></tr>
-            <tr><td class="code-inline">ScraperStatus</td><td style="color:#64748b;">18+ 爬虫状态跟踪（最后运行/成功时间/错误）</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- ══ 4. AI PIPELINE ══ -->
-<section id="sec-ai" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">AI 处理管道</div>
-    <p class="sec-sub">系统采用两阶段 AI 策略：快速小模型处理海量新闻，大型视觉语言模型生成战场综合报告，全部在本地 Ollama 运行，无需联网 API。</p>
-  </div>
-
-  <!-- Model comparison -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-    <div class="glass bracket p-5">
-      <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;">⚡ deepseek-r1:1.5b — 快速处理</div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:6px;">
-        <li>📌 用途：新闻摘要翻译、分类、地理坐标提取</li>
-        <li>⏱ 响应：约 3 秒/条</li>
-        <li>📦 模型大小：1.1 GB</li>
-        <li>🔑 特性：CoT 在 <code class="code-inline">&lt;think&gt;</code> 标签内，<code class="code-inline">content</code> 字段包含实际 JSON 输出</li>
-        <li>📊 token 预算：700</li>
-        <li>🌐 中文能力：直接输出中文摘要，置信度分级</li>
-      </ul>
-    </div>
-    <div class="glass bracket p-5">
-      <div style="font-size:13px;font-weight:700;color:#38bdf8;margin-bottom:10px;">🧠 qwen3-vl:8b — 深度分析</div>
-      <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:6px;">
-        <li>📌 用途：战场综合报告生成 + 图像军事分析</li>
-        <li>⏱ 响应：约 60-120 秒/次（8192 token）</li>
-        <li>📦 模型大小：6.1 GB</li>
-        <li>🔑 特性：CoT 在 Ollama <code class="code-inline">thinking</code> 字段，<code class="code-inline">content</code> 为空需 8192 token 预算</li>
-        <li>👁 视觉：支持 base64 图像输入，分析军事装备和场景</li>
-        <li>📊 超时：480s，防止报告生成超时失败</li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- Pipeline flow -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.8px;">▌ 新闻处理流程（process_with_ai）</div>
-    <div class="flex flex-wrap gap-2 items-center" style="font-size:11px;">
-      <div class="arch-node hl">原文 title + content</div>
-      <span style="color:#334155;">→</span>
-      <div class="arch-node ai">summarize_and_classify()<br>deepseek-r1:1.5b</div>
-      <span style="color:#334155;">→</span>
-      <div class="arch-node hl">summary_zh<br>category<br>locations</div>
-      <span style="color:#334155;">→</span>
-      <div style="display:flex;flex-direction:column;gap:4px;">
-        <div class="arch-node">更新 NewsItem</div>
-        <div class="arch-node ir">若 airstrike/naval<br>自动创建 MilitaryEvent</div>
-        <div class="arch-node ai">若突发+图片<br>analyze_image() 视觉分析</div>
+      <!-- Model comparison -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="glass bracket p-5">
+          <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;">⚡ deepseek-r1:1.5b — 快速处理</div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:6px;">
+            <li>📌 用途：新闻摘要翻译、分类、地理坐标提取</li>
+            <li>⏱ 响应：约 3 秒/条</li>
+            <li>📦 模型大小：1.1 GB</li>
+            <li>🔑 特性：CoT 在 <code class="code-inline">&lt;think&gt;</code> 标签内，<code class="code-inline">content</code>
+              字段包含实际 JSON 输出</li>
+            <li>📊 token 预算：700</li>
+            <li>🌐 中文能力：直接输出中文摘要，置信度分级</li>
+          </ul>
+        </div>
+        <div class="glass bracket p-5">
+          <div style="font-size:13px;font-weight:700;color:#38bdf8;margin-bottom:10px;">🧠 qwen3-vl:8b — 深度分析</div>
+          <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:6px;">
+            <li>📌 用途：战场综合报告生成 + 图像军事分析</li>
+            <li>⏱ 响应：约 60-120 秒/次（8192 token）</li>
+            <li>📦 模型大小：6.1 GB</li>
+            <li>🔑 特性：CoT 在 Ollama <code class="code-inline">thinking</code> 字段，<code class="code-inline">content</code>
+              为空需 8192 token 预算</li>
+            <li>👁 视觉：支持 base64 图像输入，分析军事装备和场景</li>
+            <li>📊 超时：480s，防止报告生成超时失败</li>
+          </ul>
+        </div>
       </div>
-    </div>
-    <div style="font-size:11px;color:#475569;margin-top:12px;">
-      串行信号量：<code class="code-inline">asyncio.Semaphore(1)</code> 确保同一时刻只有一个 Ollama 请求，防止模型加载期间并发崩溃。
-    </div>
-  </div>
 
-  <!-- Daily summary -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 战场报告生成（generate_daily_summary）</div>
-    <pre>输入：过去 24h 新闻摘要（最多 50 条） + 事件列表（最多 30 条）
+      <!-- Pipeline flow -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 新闻处理流程（process_with_ai）</div>
+        <div class="flex flex-wrap gap-2 items-center" style="font-size:11px;">
+          <div class="arch-node hl">原文 title + content</div>
+          <span style="color:#334155;">→</span>
+          <div class="arch-node ai">summarize_and_classify()<br>deepseek-r1:1.5b</div>
+          <span style="color:#334155;">→</span>
+          <div class="arch-node hl">summary_zh<br>category<br>locations</div>
+          <span style="color:#334155;">→</span>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div class="arch-node">更新 NewsItem</div>
+            <div class="arch-node ir">若 airstrike/naval<br>自动创建 MilitaryEvent</div>
+            <div class="arch-node ai">若突发+图片<br>analyze_image() 视觉分析</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#475569;margin-top:12px;">
+          串行信号量：<code class="code-inline">asyncio.Semaphore(1)</code> 确保同一时刻只有一个 Ollama 请求，防止模型加载期间并发崩溃。
+        </div>
+      </div>
+
+      <!-- Daily summary -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 战场报告生成（generate_daily_summary）</div>
+        <pre>输入：过去 24h 新闻摘要（最多 50 条） + 事件列表（最多 30 条）
 
 模型：qwen3-vl:8b，num_predict=8192，timeout=480s
 
@@ -616,470 +1074,737 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
 
 坐标校验：hotspot lat/lon 自动校验中东范围（纬度10-45°，经度32-75°）
           若为0,0则按50+关键词查表修正（纳坦兹/德黑兰/霍尔木兹等）</pre>
-  </div>
+      </div>
 
-  <!-- Chart: AI processing stats -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 模型性能对比</div>
-    <div class="chart-wrap" style="height:220px;">
-      <canvas id="aiChart"></canvas>
-    </div>
-  </div>
-</section>
+      <!-- Chart: AI processing stats -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 模型性能对比</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="aiChart"></canvas>
+        </div>
+      </div>
+    </section>
 
-<!-- ══ 5. DATA SOURCES ══ -->
-<section id="sec-data" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">数据来源</div>
-    <p class="sec-sub">系统整合 18+ 个 OSINT 数据源，涵盖主流军事新闻媒体（RSS）、OSINT 社交账号（via RSSHub）和实时 ADS-B 航班数据。</p>
-  </div>
+    <!-- ══ 5. DATA SOURCES ══ -->
+    <section id="sec-data" class="tab-content space-y-6">
+      <div>
+        <div class="sec-title">数据来源</div>
+        <p class="sec-sub">系统整合 18+ 个 OSINT 数据源，涵盖主流军事新闻媒体（RSS）、OSINT 社交账号（via RSSHub）和实时 ADS-B 航班数据。</p>
+      </div>
 
-  <!-- Sources chart -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-    <div class="glass p-5">
-      <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 来源分级分布</div>
-      <div class="chart-wrap" style="height:200px;">
-        <canvas id="sourceChart"></canvas>
+      <!-- Sources chart -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="glass p-5">
+          <div
+            style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+            ▌ 来源分级分布</div>
+          <div class="chart-wrap" style="height:200px;">
+            <canvas id="sourceChart"></canvas>
+          </div>
+        </div>
+        <div class="glass p-5">
+          <div
+            style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+            ▌ 数据类型分布</div>
+          <div class="chart-wrap" style="height:200px;">
+            <canvas id="typeChart"></canvas>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="glass p-5">
-      <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 数据类型分布</div>
-      <div class="chart-wrap" style="height:200px;">
-        <canvas id="typeChart"></canvas>
-      </div>
-    </div>
-  </div>
 
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 新闻来源列表（18 个）</div>
-    <table>
-      <thead><tr><th>等级</th><th>来源名称</th><th>source_id</th><th>类型</th><th>置信度</th></tr></thead>
-      <tbody>
-        <tr><td><span class="tag tag-blue">Tier 1</span></td><td>Reuters</td><td class="code-inline">reuters_world</td><td>RSS</td><td>0.9</td></tr>
-        <tr><td><span class="tag tag-blue">Tier 1</span></td><td>BBC World (Middle East)</td><td class="code-inline">bbc_world</td><td>RSS</td><td>0.9</td></tr>
-        <tr><td><span class="tag tag-blue">Tier 1</span></td><td>Al Jazeera</td><td class="code-inline">aljazeera</td><td>RSS</td><td>0.9</td></tr>
-        <tr><td><span class="tag tag-blue">Tier 1</span></td><td>AP News</td><td class="code-inline">apnews</td><td>RSS via RSSHub</td><td>0.9</td></tr>
-        <tr><td><span class="tag tag-blue">Tier 1</span></td><td>ISW Iran Update</td><td class="code-inline">isw</td><td>HTML 直接爬取</td><td>0.9</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>The War Zone</td><td class="code-inline">warzone</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Breaking Defense</td><td class="code-inline">breaking_defense</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Defense News</td><td class="code-inline">defense_news</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Politico Defense</td><td class="code-inline">politico</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>OSINT Defender（Twitter/X）</td><td class="code-inline">osint_defender</td><td>RSSHub Twitter</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Iran International</td><td class="code-inline">iran_intl</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Middle East Eye</td><td class="code-inline">middle_east_eye</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>BNO News</td><td class="code-inline">bno_news</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-purple">Tier 2</span></td><td>Naval News</td><td class="code-inline">naval_news</td><td>RSS</td><td>0.7</td></tr>
-        <tr><td><span class="tag tag-amber">Tier 3</span></td><td>Global Times</td><td class="code-inline">globaltimes</td><td>RSS</td><td>0.5</td></tr>
-        <tr><td><span class="tag tag-amber">Tier 3</span></td><td>Xinhua</td><td class="code-inline">xinhua</td><td>RSS</td><td>0.5</td></tr>
-        <tr><td><span class="tag tag-green">实时</span></td><td>OpenSky Network</td><td class="code-inline">opensky</td><td>REST API</td><td>—</td></tr>
-        <tr><td><span class="tag tag-green">实时</span></td><td>AIS 船舶（Demo）</td><td class="code-inline">ais_demo</td><td>Demo + AISSTREAM</td><td>—</td></tr>
-      </tbody>
-    </table>
-  </div>
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 新闻来源列表（18 个）</div>
+        <table>
+          <thead>
+            <tr>
+              <th>等级</th>
+              <th>来源名称</th>
+              <th>source_id</th>
+              <th>类型</th>
+              <th>置信度</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag tag-blue">Tier 1</span></td>
+              <td>Reuters</td>
+              <td class="code-inline">reuters_world</td>
+              <td>RSS</td>
+              <td>0.9</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">Tier 1</span></td>
+              <td>BBC World (Middle East)</td>
+              <td class="code-inline">bbc_world</td>
+              <td>RSS</td>
+              <td>0.9</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">Tier 1</span></td>
+              <td>Al Jazeera</td>
+              <td class="code-inline">aljazeera</td>
+              <td>RSS</td>
+              <td>0.9</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">Tier 1</span></td>
+              <td>AP News</td>
+              <td class="code-inline">apnews</td>
+              <td>RSS via RSSHub</td>
+              <td>0.9</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-blue">Tier 1</span></td>
+              <td>ISW Iran Update</td>
+              <td class="code-inline">isw</td>
+              <td>HTML 直接爬取</td>
+              <td>0.9</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>The War Zone</td>
+              <td class="code-inline">warzone</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Breaking Defense</td>
+              <td class="code-inline">breaking_defense</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Defense News</td>
+              <td class="code-inline">defense_news</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Politico Defense</td>
+              <td class="code-inline">politico</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>OSINT Defender（Twitter/X）</td>
+              <td class="code-inline">osint_defender</td>
+              <td>RSSHub Twitter</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Iran International</td>
+              <td class="code-inline">iran_intl</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Middle East Eye</td>
+              <td class="code-inline">middle_east_eye</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>BNO News</td>
+              <td class="code-inline">bno_news</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-purple">Tier 2</span></td>
+              <td>Naval News</td>
+              <td class="code-inline">naval_news</td>
+              <td>RSS</td>
+              <td>0.7</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">Tier 3</span></td>
+              <td>Global Times</td>
+              <td class="code-inline">globaltimes</td>
+              <td>RSS</td>
+              <td>0.5</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-amber">Tier 3</span></td>
+              <td>Xinhua</td>
+              <td class="code-inline">xinhua</td>
+              <td>RSS</td>
+              <td>0.5</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-green">实时</span></td>
+              <td>OpenSky Network</td>
+              <td class="code-inline">opensky</td>
+              <td>REST API</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-green">实时</span></td>
+              <td>AIS 船舶（Demo）</td>
+              <td class="code-inline">ais_demo</td>
+              <td>Demo + AISSTREAM</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-  <!-- Relevance filter -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 相关性过滤（25 个军事关键词）</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px;">
-      <span class="tag tag-blue">iran</span><span class="tag tag-blue">persian gulf</span><span class="tag tag-blue">hormuz</span>
-      <span class="tag tag-blue">tehran</span><span class="tag tag-blue">irgc</span><span class="tag tag-blue">revolutionary guard</span>
-      <span class="tag tag-red">centcom</span><span class="tag tag-red">us military</span><span class="tag tag-red">pentagon</span>
-      <span class="tag tag-red">carrier</span><span class="tag tag-red">strike group</span><span class="tag tag-red">f-35 / b-52</span>
-      <span class="tag tag-amber">missile</span><span class="tag tag-amber">drone</span><span class="tag tag-amber">airstrike</span>
-      <span class="tag tag-amber">ballistic</span><span class="tag tag-amber">patriot</span><span class="tag tag-amber">iron dome</span>
-      <span class="tag tag-purple">houthi</span><span class="tag tag-purple">hezbollah</span><span class="tag tag-purple">iraq militia</span>
-      <span class="tag tag-purple">proxy</span><span class="tag tag-green">nuclear</span><span class="tag tag-green">enrichment</span><span class="tag tag-green">warship</span>
-    </div>
-    <div style="font-size:11px;color:#475569;margin-top:10px;">不匹配任何关键词的文章直接丢弃，不写入数据库，节省 AI 处理预算。</div>
-  </div>
-</section>
+      <!-- Relevance filter -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 相关性过滤（25 个军事关键词）</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px;">
+          <span class="tag tag-blue">iran</span><span class="tag tag-blue">persian gulf</span><span
+            class="tag tag-blue">hormuz</span>
+          <span class="tag tag-blue">tehran</span><span class="tag tag-blue">irgc</span><span
+            class="tag tag-blue">revolutionary guard</span>
+          <span class="tag tag-red">centcom</span><span class="tag tag-red">us military</span><span
+            class="tag tag-red">pentagon</span>
+          <span class="tag tag-red">carrier</span><span class="tag tag-red">strike group</span><span
+            class="tag tag-red">f-35 / b-52</span>
+          <span class="tag tag-amber">missile</span><span class="tag tag-amber">drone</span><span
+            class="tag tag-amber">airstrike</span>
+          <span class="tag tag-amber">ballistic</span><span class="tag tag-amber">patriot</span><span
+            class="tag tag-amber">iron dome</span>
+          <span class="tag tag-purple">houthi</span><span class="tag tag-purple">hezbollah</span><span
+            class="tag tag-purple">iraq militia</span>
+          <span class="tag tag-purple">proxy</span><span class="tag tag-green">nuclear</span><span
+            class="tag tag-green">enrichment</span><span class="tag tag-green">warship</span>
+        </div>
+        <div style="font-size:11px;color:#475569;margin-top:10px;">不匹配任何关键词的文章直接丢弃，不写入数据库，节省 AI 处理预算。</div>
+      </div>
+    </section>
 
-<!-- ══ 6. API ══ -->
-<section id="sec-api" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">API 参考</div>
-    <p class="sec-sub">后端提供完整 REST API（Swagger UI：<code class="code-inline">http://localhost:8100/docs</code>）+ WebSocket 实时推送。</p>
-  </div>
+    <!-- ══ 6. API ══ -->
+    <section id="sec-api" class="tab-content space-y-6">
+      <div>
+        <div class="sec-title">API 参考</div>
+        <p class="sec-sub">后端提供完整 REST API（Swagger UI：<code class="code-inline">http://localhost:8100/docs</code>）+
+          WebSocket 实时推送。</p>
+      </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-    <div class="glass p-5">
-      <div style="font-size:13px;font-weight:600;color:#4ade80;margin-bottom:10px;">📰 /api/news</div>
-      <table>
-        <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/news</td><td>分页列表。参数：page, size, category, source_tier, breaking_only, q（全文搜索）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/news/{id}</td><td>单条详情</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="glass p-5">
-      <div style="font-size:13px;font-weight:600;color:#f87171;margin-bottom:10px;">🎯 /api/events · /api/units · /api/zones</div>
-      <table>
-        <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/events/geojson</td><td>事件 GeoJSON（时间范围过滤）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/units/geojson</td><td>军事单位 GeoJSON</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/zones/geojson</td><td>控制区域 GeoJSON</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="glass p-5">
-      <div style="font-size:13px;font-weight:600;color:#fbbf24;margin-bottom:10px;">📊 /api/analysis</div>
-      <table>
-        <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/analysis/latest</td><td>最新战场报告（hotspots + intensity_score）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/analysis/intensity</td><td>日均烈度趋势（1-30 天）</td></tr>
-          <tr><td><span class="tag tag-blue">POST</span></td><td class="code-inline">/api/analysis/generate</td><td>手动触发 AI 分析</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/analysis/ollama/health</td><td>Ollama 健康检查</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="glass p-5">
-      <div style="font-size:13px;font-weight:600;color:#c084fc;margin-bottom:10px;">⚙ /api/control · /api/flights · /api/ships</div>
-      <table>
-        <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><span class="tag tag-blue">POST</span></td><td class="code-inline">/api/control/refresh</td><td>完整刷新管道（爬取→AI→报告）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/control/sources</td><td>所有爬虫来源状态</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/flights/live</td><td>中东区域实时航班（OpenSky）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/ships/live</td><td>舰船动态（Demo + AIS）</td></tr>
-          <tr><td><span class="tag tag-green">GET</span></td><td class="code-inline">/api/youtube/latest</td><td>YouTube 频道最新视频（RSS 代理）</td></tr>
-          <tr><td>WS</td><td class="code-inline">/ws</td><td>WebSocket 实时推送（心跳 30s）</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="glass p-5">
+          <div style="font-size:13px;font-weight:600;color:#4ade80;margin-bottom:10px;">📰 /api/news</div>
+          <table>
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/news</td>
+                <td>分页列表。参数：page, size, category, source_tier, breaking_only, q（全文搜索）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/news/{id}</td>
+                <td>单条详情</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="glass p-5">
+          <div style="font-size:13px;font-weight:600;color:#f87171;margin-bottom:10px;">🎯 /api/events · /api/units ·
+            /api/zones</div>
+          <table>
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/events/geojson</td>
+                <td>事件 GeoJSON（时间范围过滤）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/units/geojson</td>
+                <td>军事单位 GeoJSON</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/zones/geojson</td>
+                <td>控制区域 GeoJSON</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="glass p-5">
+          <div style="font-size:13px;font-weight:600;color:#fbbf24;margin-bottom:10px;">📊 /api/analysis</div>
+          <table>
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/analysis/latest</td>
+                <td>最新战场报告（hotspots + intensity_score）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/analysis/intensity</td>
+                <td>日均烈度趋势（1-30 天）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-blue">POST</span></td>
+                <td class="code-inline">/api/analysis/generate</td>
+                <td>手动触发 AI 分析</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/analysis/ollama/health</td>
+                <td>Ollama 健康检查</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="glass p-5">
+          <div style="font-size:13px;font-weight:600;color:#c084fc;margin-bottom:10px;">⚙ /api/control · /api/flights ·
+            /api/ships</div>
+          <table>
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tag tag-blue">POST</span></td>
+                <td class="code-inline">/api/control/refresh</td>
+                <td>完整刷新管道（爬取→AI→报告）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/control/sources</td>
+                <td>所有爬虫来源状态</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/flights/live</td>
+                <td>中东区域实时航班（OpenSky）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/ships/live</td>
+                <td>舰船动态（Demo + AIS）</td>
+              </tr>
+              <tr>
+                <td><span class="tag tag-green">GET</span></td>
+                <td class="code-inline">/api/youtube/latest</td>
+                <td>YouTube 频道最新视频（RSS 代理）</td>
+              </tr>
+              <tr>
+                <td>WS</td>
+                <td class="code-inline">/ws</td>
+                <td>WebSocket 实时推送（心跳 30s）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-  <!-- WebSocket events -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ WebSocket 消息类型</div>
-    <table>
-      <thead><tr><th>type</th><th>触发时机</th><th>前端响应</th></tr></thead>
-      <tbody>
-        <tr><td class="code-inline">new_articles</td><td>爬虫保存新文章</td><td>通知 ticker 显示"新增 N 条情报"</td></tr>
-        <tr><td class="code-inline">ai_processed</td><td>AI 批量翻译完成</td><td>refreshPhase → 'reporting'</td></tr>
-        <tr><td class="code-inline">analysis_updated</td><td>战场报告生成完成</td><td>重新拉取 latest report，更新地图热点和烈度</td></tr>
-        <tr><td class="code-inline">manual_refresh_done</td><td>手动刷新全流程结束</td><td>refreshPhase → 'idle'，刷新全部地图数据</td></tr>
-        <tr><td class="code-inline">pong</td><td>服务端心跳响应</td><td>无操作（确认连接存活）</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+      <!-- WebSocket events -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ WebSocket 消息类型</div>
+        <table>
+          <thead>
+            <tr>
+              <th>type</th>
+              <th>触发时机</th>
+              <th>前端响应</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="code-inline">new_articles</td>
+              <td>爬虫保存新文章</td>
+              <td>通知 ticker 显示"新增 N 条情报"</td>
+            </tr>
+            <tr>
+              <td class="code-inline">ai_processed</td>
+              <td>AI 批量翻译完成</td>
+              <td>refreshPhase → 'reporting'</td>
+            </tr>
+            <tr>
+              <td class="code-inline">analysis_updated</td>
+              <td>战场报告生成完成</td>
+              <td>重新拉取 latest report，更新地图热点和烈度</td>
+            </tr>
+            <tr>
+              <td class="code-inline">manual_refresh_done</td>
+              <td>手动刷新全流程结束</td>
+              <td>refreshPhase → 'idle'，刷新全部地图数据</td>
+            </tr>
+            <tr>
+              <td class="code-inline">pong</td>
+              <td>服务端心跳响应</td>
+              <td>无操作（确认连接存活）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-<!-- ══ 7. ROADMAP ══ -->
-<section id="sec-roadmap" class="tab-content space-y-6">
-  <div>
-    <div class="sec-title">升级路线图</div>
-    <p class="sec-sub">基于当前 v1.x 实现，规划三个演进阶段，从数据源扩充到 AI 深度推演，最终实现真正的"多维战场全息沙盘"。</p>
-  </div>
+    <!-- ══ 7. ROADMAP ══ -->
+    <section id="sec-roadmap" class="tab-content space-y-6">
+      <div>
+        <div class="sec-title">升级路线图</div>
+        <p class="sec-sub">基于当前 v1.x 实现，规划三个演进阶段，从数据源扩充到 AI 深度推演，最终实现真正的"多维战场全息沙盘"。</p>
+      </div>
 
-  <!-- Phase legend -->
-  <div class="flex flex-wrap gap-3 text-xs">
-    <span style="display:flex;align-items:center;gap:6px;color:#4ade80;"><span style="width:12px;height:12px;background:#22c55e;border-radius:2px;display:inline-block;"></span> 已完成</span>
-    <span style="display:flex;align-items:center;gap:6px;color:#38bdf8;"><span style="width:12px;height:12px;background:#0ea5e9;border-radius:2px;display:inline-block;"></span> 进行中 / 近期</span>
-    <span style="display:flex;align-items:center;gap:6px;color:#c084fc;"><span style="width:12px;height:12px;background:#a855f7;border-radius:2px;display:inline-block;"></span> 中期规划</span>
-    <span style="display:flex;align-items:center;gap:6px;color:#64748b;"><span style="width:12px;height:12px;background:#475569;border-radius:2px;display:inline-block;"></span> 远期愿景</span>
-  </div>
+      <!-- Phase legend -->
+      <div class="flex flex-wrap gap-3 text-xs">
+        <span style="display:flex;align-items:center;gap:6px;color:#4ade80;"><span
+            style="width:12px;height:12px;background:#22c55e;border-radius:2px;display:inline-block;"></span> 已完成</span>
+        <span style="display:flex;align-items:center;gap:6px;color:#38bdf8;"><span
+            style="width:12px;height:12px;background:#0ea5e9;border-radius:2px;display:inline-block;"></span> 进行中 /
+          近期</span>
+        <span style="display:flex;align-items:center;gap:6px;color:#c084fc;"><span
+            style="width:12px;height:12px;background:#a855f7;border-radius:2px;display:inline-block;"></span>
+          中期规划</span>
+        <span style="display:flex;align-items:center;gap:6px;color:#64748b;"><span
+            style="width:12px;height:12px;background:#475569;border-radius:2px;display:inline-block;"></span>
+          远期愿景</span>
+      </div>
 
-  <!-- Timeline visual -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.8px;">▌ 演进路线</div>
-    <div class="chart-wrap" style="height:120px;">
-      <canvas id="roadmapChart"></canvas>
-    </div>
-  </div>
+      <!-- Timeline visual -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 演进路线</div>
+        <div class="chart-wrap" style="height:120px;">
+          <canvas id="roadmapChart"></canvas>
+        </div>
+      </div>
 
-  <!-- Phase 1: Done -->
-  <div>
-    <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-      <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;"></span>
-      Phase 1 · 基础建设（已完成）
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 多源情报抓取</div>
-        <p style="font-size:11px;color:#64748b;">11 个 RSS + HTML 爬虫，25 关键词相关性过滤，每 60 分钟自动更新</p>
+      <!-- Phase 1: Done -->
+      <div>
+        <div
+          style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;"></span>
+          Phase 1 · 基础建设（已完成）
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 多源情报抓取</div>
+            <p style="font-size:11px;color:#64748b;">11 个 RSS + HTML 爬虫，25 关键词相关性过滤，每 60 分钟自动更新</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ AI 中文处理管道</div>
+            <p style="font-size:11px;color:#64748b;">deepseek-r1 快速摘要翻译，qwen3-vl 战场综合报告，全本地 Ollama</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ GIS 战场地图</div>
+            <p style="font-size:11px;color:#64748b;">Leaflet CartoDB 底图，9 个图层，军事单位/事件/控制区域可视化</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ WebSocket 实时推送</div>
+            <p style="font-size:11px;color:#64748b;">前后端实时同步，自动重连，30s 心跳保活</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 时间轴回放</div>
+            <p style="font-size:11px;color:#64748b;">拖拽 + 自动播放，45 天历史态势演变，0.5×-4× 速度</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ HUD 军事界面</div>
+            <p style="font-size:11px;color:#64748b;">扫描线纹理、雷达脉冲动画、角落装饰、LIVE 徽章</p>
+          </div>
+        </div>
       </div>
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ AI 中文处理管道</div>
-        <p style="font-size:11px;color:#64748b;">deepseek-r1 快速摘要翻译，qwen3-vl 战场综合报告，全本地 Ollama</p>
-      </div>
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ GIS 战场地图</div>
-        <p style="font-size:11px;color:#64748b;">Leaflet CartoDB 底图，9 个图层，军事单位/事件/控制区域可视化</p>
-      </div>
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ WebSocket 实时推送</div>
-        <p style="font-size:11px;color:#64748b;">前后端实时同步，自动重连，30s 心跳保活</p>
-      </div>
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 时间轴回放</div>
-        <p style="font-size:11px;color:#64748b;">拖拽 + 自动播放，45 天历史态势演变，0.5×-4× 速度</p>
-      </div>
-      <div class="glass p-4 roadmap-done">
-        <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ HUD 军事界面</div>
-        <p style="font-size:11px;color:#64748b;">扫描线纹理、雷达脉冲动画、角落装饰、LIVE 徽章</p>
-      </div>
-    </div>
-  </div>
 
-  <!-- Phase 2: Current/Near -->
-  <div>
-    <div style="font-size:13px;font-weight:700;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-      <span style="width:8px;height:8px;background:#0ea5e9;border-radius:50%;animation:pulse 1.5s infinite;display:inline-block;"></span>
-      Phase 2 · 数据扩充与视觉升级（进行中）
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div class="glass p-4 roadmap-active">
-        <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ OSINT Twitter/X 集成</div>
-        <p style="font-size:11px;color:#64748b;">通过 RSSHub 代理 OSINT Defender 等推文账号，情报面板双标签展示</p>
+      <!-- Phase 2: Current/Near -->
+      <div>
+        <div
+          style="font-size:13px;font-weight:700;color:#38bdf8;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span
+            style="width:8px;height:8px;background:#0ea5e9;border-radius:50%;animation:pulse 1.5s infinite;display:inline-block;"></span>
+          Phase 2 · 数据扩充与视觉升级（进行中）
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="glass p-4 roadmap-active">
+            <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ OSINT Twitter/X 集成</div>
+            <p style="font-size:11px;color:#64748b;">通过 RSSHub 代理 OSINT Defender 等推文账号，情报面板双标签展示</p>
+          </div>
+          <div class="glass p-4 roadmap-active">
+            <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 实时航班追踪</div>
+            <p style="font-size:11px;color:#64748b;">OpenSky Network ADS-B，中东区域实时航班叠加，60s 轮询</p>
+          </div>
+          <div class="glass p-4 roadmap-active">
+            <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 视频热点弹窗</div>
+            <p style="font-size:11px;color:#64748b;">8 处战略要地内嵌 YouTube OSINT 频道，RSS 代理获取最新视频</p>
+          </div>
+          <div class="glass p-4 roadmap-active">
+            <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">🔄 坐标校验系统</div>
+            <p style="font-size:11px;color:#64748b;">AI 生成坐标自动校验中东范围，50+ 关键词查表修正，告别 0,0 漂移</p>
+          </div>
+          <div class="glass p-4 roadmap-active">
+            <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">📋 增强来源（7 个）</div>
+            <p style="font-size:11px;color:#64748b;">Iran International、Middle East Eye、BNO News、Naval News、Covert
+              Shores 等</p>
+          </div>
+          <div class="glass p-4 roadmap-active" style="border-left-color:#475569;">
+            <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">🔲 真实 AIS 船舶数据</div>
+            <p style="font-size:11px;color:#475569;">配置 AISSTREAM_API_KEY 环境变量即可接入真实 AIS 轨迹（架构已就绪）</p>
+          </div>
+        </div>
       </div>
-      <div class="glass p-4 roadmap-active">
-        <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 实时航班追踪</div>
-        <p style="font-size:11px;color:#64748b;">OpenSky Network ADS-B，中东区域实时航班叠加，60s 轮询</p>
-      </div>
-      <div class="glass p-4 roadmap-active">
-        <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 视频热点弹窗</div>
-        <p style="font-size:11px;color:#64748b;">8 处战略要地内嵌 YouTube OSINT 频道，RSS 代理获取最新视频</p>
-      </div>
-      <div class="glass p-4 roadmap-active">
-        <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">🔄 坐标校验系统</div>
-        <p style="font-size:11px;color:#64748b;">AI 生成坐标自动校验中东范围，50+ 关键词查表修正，告别 0,0 漂移</p>
-      </div>
-      <div class="glass p-4 roadmap-active">
-        <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">📋 增强来源（7 个）</div>
-        <p style="font-size:11px;color:#64748b;">Iran International、Middle East Eye、BNO News、Naval News、Covert Shores 等</p>
-      </div>
-      <div class="glass p-4 roadmap-active" style="border-left-color:#475569;">
-        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">🔲 真实 AIS 船舶数据</div>
-        <p style="font-size:11px;color:#475569;">配置 AISSTREAM_API_KEY 环境变量即可接入真实 AIS 轨迹（架构已就绪）</p>
-      </div>
-    </div>
-  </div>
 
-  <!-- Phase 3: Medium term -->
-  <div>
-    <div style="font-size:13px;font-weight:700;color:#c084fc;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-      <span style="width:8px;height:8px;background:#a855f7;border-radius:50%;display:inline-block;"></span>
-      Phase 3 · AI 深度推演（中期规划）
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🧠 Multi-Agent 情报核实</div>
-        <p style="font-size:11px;color:#64748b;">情报核实 Agent（交叉验证多来源）+ 战术推演 Agent（基于历史数据预测走势）</p>
+      <!-- Phase 3: Medium term -->
+      <div>
+        <div
+          style="font-size:13px;font-weight:700;color:#c084fc;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span style="width:8px;height:8px;background:#a855f7;border-radius:50%;display:inline-block;"></span>
+          Phase 3 · AI 深度推演（中期规划）
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🧠 Multi-Agent 情报核实</div>
+            <p style="font-size:11px;color:#64748b;">情报核实 Agent（交叉验证多来源）+ 战术推演 Agent（基于历史数据预测走势）</p>
+          </div>
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📈 冲突升级概率预测</div>
+            <p style="font-size:11px;color:#64748b;">基于 24-72h 滑动窗口历史数据推演冲突升级/降级概率，生成概率分布图</p>
+          </div>
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🛢 经济指标联动</div>
+            <p style="font-size:11px;color:#64748b;">接入原油期货（WTI/Brent）和航运保险费率，与军事事件做相关性分析</p>
+          </div>
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🗣 情报自然语言查询</div>
+            <p style="font-size:11px;color:#64748b;">"最近 3 天伊朗导弹袭击了哪里？" 直接用中文查询数据库，AI 返回结构化结果</p>
+          </div>
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📡 卫星图像集成</div>
+            <p style="font-size:11px;color:#64748b;">Planet Labs API 或 Sentinel-2 开源卫星图，对关键目标（纳坦兹、班达尔阿巴斯）做前后对比分析</p>
+          </div>
+          <div class="glass p-4 roadmap-plan">
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📧 多渠道告警推送</div>
+            <p style="font-size:11px;color:#64748b;">突发事件触发 Telegram Bot / 邮件告警，支持自定义关键词订阅</p>
+          </div>
+        </div>
       </div>
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📈 冲突升级概率预测</div>
-        <p style="font-size:11px;color:#64748b;">基于 24-72h 滑动窗口历史数据推演冲突升级/降级概率，生成概率分布图</p>
-      </div>
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🛢 经济指标联动</div>
-        <p style="font-size:11px;color:#64748b;">接入原油期货（WTI/Brent）和航运保险费率，与军事事件做相关性分析</p>
-      </div>
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🗣 情报自然语言查询</div>
-        <p style="font-size:11px;color:#64748b;">"最近 3 天伊朗导弹袭击了哪里？" 直接用中文查询数据库，AI 返回结构化结果</p>
-      </div>
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📡 卫星图像集成</div>
-        <p style="font-size:11px;color:#64748b;">Planet Labs API 或 Sentinel-2 开源卫星图，对关键目标（纳坦兹、班达尔阿巴斯）做前后对比分析</p>
-      </div>
-      <div class="glass p-4 roadmap-plan">
-        <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📧 多渠道告警推送</div>
-        <p style="font-size:11px;color:#64748b;">突发事件触发 Telegram Bot / 邮件告警，支持自定义关键词订阅</p>
-      </div>
-    </div>
-  </div>
 
-  <!-- Phase 4: Future vision -->
-  <div>
-    <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-      <span style="width:8px;height:8px;background:#475569;border-radius:50%;display:inline-block;"></span>
-      Phase 4 · 全息沙盘（远期愿景）
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🌐 WebGL 3D 地形渲染</div>
-        <p style="font-size:11px;color:#334155;">Cesium.js 或 Deck.gl，支持 2.5D 建筑、3D 地形、动态火力弧线动画</p>
+      <!-- Phase 4: Future vision -->
+      <div>
+        <div
+          style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span style="width:8px;height:8px;background:#475569;border-radius:50%;display:inline-block;"></span>
+          Phase 4 · 全息沙盘（远期愿景）
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🌐 WebGL 3D 地形渲染</div>
+            <p style="font-size:11px;color:#334155;">Cesium.js 或 Deck.gl，支持 2.5D 建筑、3D 地形、动态火力弧线动画</p>
+          </div>
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">⚡ 流式实时处理</div>
+            <p style="font-size:11px;color:#334155;">Apache Kafka 或 Redis Streams，秒级情报入库与前端推送，从分钟级降至秒级</p>
+          </div>
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🎙 语音播报</div>
+            <p style="font-size:11px;color:#334155;">突发事件自动语音播报（本地 TTS），支持中文战场态势语音解说</p>
+          </div>
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">📱 移动端适配</div>
+            <p style="font-size:11px;color:#334155;">React Native 或 PWA 移动版，手机端随时查看战场态势推送</p>
+          </div>
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🤝 多用户协作</div>
+            <p style="font-size:11px;color:#334155;">多用户同时标注情报，共享分析视图，类似协作式作战指挥系统</p>
+          </div>
+          <div class="glass p-4 roadmap-future">
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🔒 OPSEC 增强</div>
+            <p style="font-size:11px;color:#334155;">Tor/代理池轮换爬虫 IP，防封锁；本地化部署，数据不出境</p>
+          </div>
+        </div>
       </div>
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">⚡ 流式实时处理</div>
-        <p style="font-size:11px;color:#334155;">Apache Kafka 或 Redis Streams，秒级情报入库与前端推送，从分钟级降至秒级</p>
-      </div>
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🎙 语音播报</div>
-        <p style="font-size:11px;color:#334155;">突发事件自动语音播报（本地 TTS），支持中文战场态势语音解说</p>
-      </div>
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">📱 移动端适配</div>
-        <p style="font-size:11px;color:#334155;">React Native 或 PWA 移动版，手机端随时查看战场态势推送</p>
-      </div>
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🤝 多用户协作</div>
-        <p style="font-size:11px;color:#334155;">多用户同时标注情报，共享分析视图，类似协作式作战指挥系统</p>
-      </div>
-      <div class="glass p-4 roadmap-future">
-        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">🔒 OPSEC 增强</div>
-        <p style="font-size:11px;color:#334155;">Tor/代理池轮换爬虫 IP，防封锁；本地化部署，数据不出境</p>
-      </div>
-    </div>
-  </div>
 
-  <!-- Summary chart -->
-  <div class="glass p-5">
-    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">▌ 能力成熟度评估</div>
-    <div class="chart-wrap" style="height:260px;">
-      <canvas id="radarChart"></canvas>
-    </div>
-  </div>
-</section>
+      <!-- Summary chart -->
+      <div class="glass p-5">
+        <div
+          style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">
+          ▌ 能力成熟度评估</div>
+        <div class="chart-wrap" style="height:260px;">
+          <canvas id="radarChart"></canvas>
+        </div>
+      </div>
+    </section>
 
-</main>
+  </main>
 </body>
 
 <script>
-// ── Clock ────────────────────────────────────────────────
-function updateClock() {
-  const n = new Date();
-  document.getElementById('clock').textContent =
-    n.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-}
-setInterval(updateClock, 1000); updateClock();
+  // ── Clock ────────────────────────────────────────────────
+  function updateClock() {
+    const n = new Date();
+    document.getElementById('clock').textContent =
+      n.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
+  setInterval(updateClock, 1000); updateClock();
 
-// ── Tab switching ─────────────────────────────────────────
-function tab(id) {
-  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  document.getElementById('sec-' + id).classList.add('active');
-  event.currentTarget.classList.add('active');
-  initCharts();
-}
+  // ── Tab switching ─────────────────────────────────────────
+  function tab(id) {
+    document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('sec-' + id).classList.add('active');
+    event.currentTarget.classList.add('active');
+    initCharts();
+  }
 
-// ── Charts ────────────────────────────────────────────────
-let chartsInitialized = false;
-function initCharts() {
-  if (chartsInitialized) return;
-  chartsInitialized = true;
+  // ── Charts ────────────────────────────────────────────────
+  let chartsInitialized = false;
+  function initCharts() {
+    if (chartsInitialized) return;
+    chartsInitialized = true;
 
-  const C = (id, cfg) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    new Chart(el, cfg);
-  };
+    const C = (id, cfg) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      new Chart(el, cfg);
+    };
 
-  const gridColor = 'rgba(255,255,255,0.05)';
-  const tickColor = '#475569';
-  const font = { family: "'Segoe UI', sans-serif", size: 11 };
+    const gridColor = 'rgba(255,255,255,0.05)';
+    const tickColor = '#475569';
+    const font = { family: "'Segoe UI', sans-serif", size: 11 };
 
-  // AI model performance
-  C('aiChart', {
-    type: 'bar',
-    data: {
-      labels: ['响应时间(s)', '模型大小(GB)', '中文准确率(%)', 'Token 预算(×100)'],
-      datasets: [
-        { label: 'deepseek-r1:1.5b', data: [3, 1.1, 90, 7], backgroundColor: 'rgba(34,197,94,0.4)', borderColor: '#22c55e', borderWidth: 1 },
-        { label: 'qwen3-vl:8b',      data: [90, 6.1, 95, 82], backgroundColor: 'rgba(14,165,233,0.4)', borderColor: '#0ea5e9', borderWidth: 1 },
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8', font } } },
-      scales: {
-        x: { ticks: { color: tickColor, font }, grid: { color: gridColor } },
-        y: { ticks: { color: tickColor, font }, grid: { color: gridColor } }
-      }
-    }
-  });
-
-  // Source tier distribution
-  C('sourceChart', {
-    type: 'doughnut',
-    data: {
-      labels: ['Tier 1 (主流媒体)', 'Tier 2 (专业军事)', 'Tier 3 (国内)'],
-      datasets: [{ data: [5, 9, 2], backgroundColor: ['rgba(14,165,233,0.7)', 'rgba(168,85,247,0.7)', 'rgba(245,158,11,0.7)'], borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8', font }, position: 'right' } }
-    }
-  });
-
-  // Data type distribution
-  C('typeChart', {
-    type: 'doughnut',
-    data: {
-      labels: ['RSS 订阅', 'HTML 爬取', 'Twitter(RSSHub)', 'REST API', 'Demo/AIS'],
-      datasets: [{ data: [13, 1, 1, 1, 2], backgroundColor: ['rgba(34,197,94,0.7)','rgba(14,165,233,0.7)','rgba(239,68,68,0.7)','rgba(168,85,247,0.7)','rgba(245,158,11,0.7)'], borderWidth: 0 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8', font }, position: 'right' } }
-    }
-  });
-
-  // Roadmap Gantt-like horizontal bar
-  C('roadmapChart', {
-    type: 'bar',
-    data: {
-      labels: ['Phase 1\n基础建设', 'Phase 2\n扩充升级', 'Phase 3\nAI 推演', 'Phase 4\n全息沙盘'],
-      datasets: [{
-        data: [100, 75, 20, 5],
-        backgroundColor: ['rgba(34,197,94,0.6)','rgba(14,165,233,0.6)','rgba(168,85,247,0.6)','rgba(71,85,105,0.6)'],
-        borderColor:      ['#22c55e','#0ea5e9','#a855f7','#475569'],
-        borderWidth: 1, borderRadius: 3,
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { max: 100, ticks: { color: tickColor, font, callback: v => v + '%' }, grid: { color: gridColor } },
-        y: { ticks: { color: '#94a3b8', font } , grid: { display: false } }
-      }
-    }
-  });
-
-  // Radar: capability maturity
-  C('radarChart', {
-    type: 'radar',
-    data: {
-      labels: ['情报广度', '数据实时性', 'AI 分析深度', '可视化质量', '告警能力', '预测能力', '部署便捷性'],
-      datasets: [
-        {
-          label: 'v1.x 当前',
-          data: [75, 55, 65, 70, 40, 30, 85],
-          backgroundColor: 'rgba(14,165,233,0.15)', borderColor: '#0ea5e9', pointBackgroundColor: '#0ea5e9', borderWidth: 1.5
-        },
-        {
-          label: 'Phase 3 目标',
-          data: [88, 72, 85, 82, 75, 70, 80],
-          backgroundColor: 'rgba(168,85,247,0.15)', borderColor: '#a855f7', pointBackgroundColor: '#a855f7', borderWidth: 1.5
-        },
-        {
-          label: 'Phase 4 愿景',
-          data: [95, 92, 95, 95, 90, 88, 75],
-          backgroundColor: 'rgba(34,197,94,0.1)', borderColor: '#22c55e', pointBackgroundColor: '#22c55e', borderWidth: 1.5
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8', font } } },
-      scales: {
-        r: {
-          ticks: { color: tickColor, font, backdropColor: 'transparent' },
-          grid: { color: 'rgba(255,255,255,0.06)' },
-          pointLabels: { color: '#94a3b8', font: { ...font, size: 11 } },
-          min: 0, max: 100
+    // AI model performance
+    C('aiChart', {
+      type: 'bar',
+      data: {
+        labels: ['响应时间(s)', '模型大小(GB)', '中文准确率(%)', 'Token 预算(×100)'],
+        datasets: [
+          { label: 'deepseek-r1:1.5b', data: [3, 1.1, 90, 7], backgroundColor: 'rgba(34,197,94,0.4)', borderColor: '#22c55e', borderWidth: 1 },
+          { label: 'qwen3-vl:8b', data: [90, 6.1, 95, 82], backgroundColor: 'rgba(14,165,233,0.4)', borderColor: '#0ea5e9', borderWidth: 1 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font } } },
+        scales: {
+          x: { ticks: { color: tickColor, font }, grid: { color: gridColor } },
+          y: { ticks: { color: tickColor, font }, grid: { color: gridColor } }
         }
       }
-    }
-  });
-}
+    });
 
-// Init charts on load (first tab)
-window.addEventListener('load', () => setTimeout(initCharts, 100));
+    // Source tier distribution
+    C('sourceChart', {
+      type: 'doughnut',
+      data: {
+        labels: ['Tier 1 (主流媒体)', 'Tier 2 (专业军事)', 'Tier 3 (国内)'],
+        datasets: [{ data: [5, 9, 2], backgroundColor: ['rgba(14,165,233,0.7)', 'rgba(168,85,247,0.7)', 'rgba(245,158,11,0.7)'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font }, position: 'right' } }
+      }
+    });
+
+    // Data type distribution
+    C('typeChart', {
+      type: 'doughnut',
+      data: {
+        labels: ['RSS 订阅', 'HTML 爬取', 'Twitter(RSSHub)', 'REST API', 'Demo/AIS'],
+        datasets: [{ data: [13, 1, 1, 1, 2], backgroundColor: ['rgba(34,197,94,0.7)', 'rgba(14,165,233,0.7)', 'rgba(239,68,68,0.7)', 'rgba(168,85,247,0.7)', 'rgba(245,158,11,0.7)'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font }, position: 'right' } }
+      }
+    });
+
+    // Roadmap Gantt-like horizontal bar
+    C('roadmapChart', {
+      type: 'bar',
+      data: {
+        labels: ['Phase 1\n基础建设', 'Phase 2\n扩充升级', 'Phase 3\nAI 推演', 'Phase 4\n全息沙盘'],
+        datasets: [{
+          data: [100, 75, 20, 5],
+          backgroundColor: ['rgba(34,197,94,0.6)', 'rgba(14,165,233,0.6)', 'rgba(168,85,247,0.6)', 'rgba(71,85,105,0.6)'],
+          borderColor: ['#22c55e', '#0ea5e9', '#a855f7', '#475569'],
+          borderWidth: 1, borderRadius: 3,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { max: 100, ticks: { color: tickColor, font, callback: v => v + '%' }, grid: { color: gridColor } },
+          y: { ticks: { color: '#94a3b8', font }, grid: { display: false } }
+        }
+      }
+    });
+
+    // Radar: capability maturity
+    C('radarChart', {
+      type: 'radar',
+      data: {
+        labels: ['情报广度', '数据实时性', 'AI 分析深度', '可视化质量', '告警能力', '预测能力', '部署便捷性'],
+        datasets: [
+          {
+            label: 'v1.x 当前',
+            data: [75, 55, 65, 70, 40, 30, 85],
+            backgroundColor: 'rgba(14,165,233,0.15)', borderColor: '#0ea5e9', pointBackgroundColor: '#0ea5e9', borderWidth: 1.5
+          },
+          {
+            label: 'Phase 3 目标',
+            data: [88, 72, 85, 82, 75, 70, 80],
+            backgroundColor: 'rgba(168,85,247,0.15)', borderColor: '#a855f7', pointBackgroundColor: '#a855f7', borderWidth: 1.5
+          },
+          {
+            label: 'Phase 4 愿景',
+            data: [95, 92, 95, 95, 90, 88, 75],
+            backgroundColor: 'rgba(34,197,94,0.1)', borderColor: '#22c55e', pointBackgroundColor: '#22c55e', borderWidth: 1.5
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font } } },
+        scales: {
+          r: {
+            ticks: { color: tickColor, font, backdropColor: 'transparent' },
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            pointLabels: { color: '#94a3b8', font: { ...font, size: 11 } },
+            min: 0, max: 100
+          }
+        }
+      }
+    });
+  }
+
+  // Init charts on load (first tab)
+  window.addEventListener('load', () => setTimeout(initCharts, 100));
 </script>
+
 </html>

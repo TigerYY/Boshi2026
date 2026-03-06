@@ -44,36 +44,39 @@ async def query_osint(
         try:
             since = datetime.now(timezone.utc) - timedelta(days=3)
 
+            # Focus on very recent news (last 30 instead of 40)
             news_result = await db.execute(
                 select(NewsItem)
                 .where(NewsItem.processed == True, NewsItem.published_at >= since)
                 .order_by(NewsItem.published_at.desc())
-                .limit(40)
+                .limit(30)
             )
             news_items = news_result.scalars().all()
 
+            # Focus on very recent events (last 15 instead of 20)
             events_result = await db.execute(
                 select(MilitaryEvent)
                 .where(MilitaryEvent.occurred_at >= since)
                 .order_by(MilitaryEvent.occurred_at.desc())
-                .limit(20)
+                .limit(15)
             )
             events = events_result.scalars().all()
 
             def _fmt_dt(dt: datetime | None) -> str:
-                if not dt: return "[未知日期]"
+                if not dt: return "[未知]"
                 if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
-                return (dt + timedelta(hours=8)).strftime("[%m-%d %H:%M]")
+                # Use a more compact format
+                return (dt + timedelta(hours=8)).strftime("%m-%d %H:%M")
 
-            news_text = "\n".join(f"- {_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
-            events_text = "\n".join(f"- {_fmt_dt(e.occurred_at)} [事件:{e.event_type}] {e.title} @ 坐标:{e.location_name}" for e in events)
+            news_text = "\n".join(f"• {_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
+            events_text = "\n".join(f"• {_fmt_dt(e.occurred_at)} [{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
             context_block = f"""
-【最新开源军情 (OSINT) 动态】
-{news_text}
+### 待分析战场原始数据 (Raw Intel)
+{news_text if news_text else "暂无相关新闻记录。"}
 
-【近期确认交火/军事事件】
-{events_text}
+### 确证军事动作与地理占位
+{events_text if events_text else "暂无相关确证事件。"}
 """
             reply = await ask_osint_question(req.message, context_block)
             return ChatResponse(reply=reply, status="ok")

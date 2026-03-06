@@ -607,7 +607,8 @@ ollama pull qwen2.5:3b
 cd BoShi2025 && chmod +x start.sh && ./start.sh
 
 # 访问
-# 前端：  http://localhost:5173
+# 本地：  http://localhost:5173
+# 远程：  http://[局域网IP]:5173 (启动脚本会显示具体地址)
 # 后端API：http://localhost:8100/docs（Swagger UI）</pre>
       </div>
     </section>
@@ -1536,7 +1537,8 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
           </div>
           <div class="glass p-4 roadmap-done">
             <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ AI 中文处理管道</div>
-            <p style="font-size:11px;color:#64748b;">qwen2.5:3b 快速摘要翻译，qwen3-vl:8b 战场综合报告，全本地 Ollama 推理，asyncio Semaphore 串行保护</p>
+            <p style="font-size:11px;color:#64748b;">qwen2.5:3b 快速摘要翻译，qwen3-vl:8b 战场综合报告，全本地 Ollama 推理，asyncio
+              Semaphore 串行保护</p>
           </div>
           <div class="glass p-4 roadmap-done">
             <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ GIS 战场地图</div>
@@ -1567,7 +1569,8 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ OSINT Twitter/X 集成</div>
-            <p style="font-size:11px;color:#64748b;">Twitter API 收费后 embedded timeline 全面关闭，Nitter 镜像已被封禁，功能已废弃并替换为 AI战场综述 Tab</p>
+            <p style="font-size:11px;color:#64748b;">Twitter API 收费后 embedded timeline 全面关闭，Nitter 镜像已被封禁，功能已废弃并替换为
+              AI战场综述 Tab</p>
           </div>
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 实时航班追踪</div>
@@ -1607,20 +1610,36 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
             <p style="font-size:11px;color:#64748b;">无感修改 AI 提取管道以免迁移抽取武器与兵力实体（Entity Tags），并在资讯界面叠加冰蓝 Neon UI 标签面板</p>
           </div>
           <div class="glass p-4 roadmap-done">
-            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003; &#26102;&#38388;&#36724; &times; &#22320;&#22270;&#32852;&#21160;&#37325;&#26500;</div>
-            <p style="font-size:11px;color:#64748b;">&#21069;&#31471;&#20869;&#23384;&#32531;&#23384;&#21462;&#20195;&#21518;&#31471;&#36750;&#35810;&#65292;&#38646;&#24310;&#36831;&#28780;&#31383;&#31639;&#27861;&#65307;&#25320;&#21160;&#26102;&#38388;&#36724;&#28216;&#26631;&#31354;&#38388;&#39537;&#21160;&#22320;&#22270;&#26631;&#35760;&#19981;&#36807;&#26131;&#24230;&#26356;&#26032;</p>
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003;
+              &#26102;&#38388;&#36724; &times; &#22320;&#22270;&#32852;&#21160;&#37325;&#26500;</div>
+            <p style="font-size:11px;color:#64748b;">
+              &#21069;&#31471;&#20869;&#23384;&#32531;&#23384;&#21462;&#20195;&#21518;&#31471;&#36750;&#35810;&#65292;&#38646;&#24310;&#36831;&#28780;&#31383;&#31639;&#27861;&#65307;&#25320;&#21160;&#26102;&#38388;&#36724;&#28216;&#26631;&#31354;&#38388;&#39537;&#21160;&#22320;&#22270;&#26631;&#35760;&#19981;&#36807;&#26131;&#24230;&#26356;&#26032;
+            </p>
           </div>
           <div class="glass p-4 roadmap-done">
-            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003; 3&#22825;&#24378;&#20809; + 14&#22825;&#20313;&#27874;&#31383;&#21475;</div>
-            <p style="font-size:11px;color:#64748b;">&#20107;&#20214;&#26631;&#35760;&#22312;&#26102;&#38388;&#31383;&#21475;&#20869;&#20840;&#20142;&#65292;3-14&#22825;&#32447;&#24615;&#28890;&#38690;&#33267;&#19981;&#21487;&#35265;&#65292;&#20860;&#39035;&#36817;&#26399;&#23494;&#24230;&#19982;&#21382;&#21490;&#33073;&#32476;</p>
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003;
+              3&#22825;&#24378;&#20809; + 14&#22825;&#20313;&#27874;&#31383;&#21475;</div>
+            <p style="font-size:11px;color:#64748b;">
+              &#20107;&#20214;&#26631;&#35760;&#22312;&#26102;&#38388;&#31383;&#21475;&#20869;&#20840;&#20142;&#65292;3-14&#22825;&#32447;&#24615;&#28890;&#38690;&#33267;&#19981;&#21487;&#35265;&#65292;&#20860;&#39035;&#36817;&#26399;&#23494;&#24230;&#19982;&#21382;&#21490;&#33073;&#32476;
+            </p>
           </div>
           <div class="glass p-4 roadmap-done">
-            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003; &#21382;&#21490;&#25773;&#25918;&#26102;&#23454;&#26102;&#36319;&#36394;&#33258;&#21160;&#26263;&#20572;</div>
-            <p style="font-size:11px;color:#64748b;">&#26102;&#38388;&#28216;&#26631;&#31163;&#24403;&#21069;&#36229;&#36807; 3 &#23567;&#26102;&#26102;&#65292;&#33258;&#21160;&#28165;&#31354;&#24182;&#20572;&#27979;&#36742;&#33719;&#23454;&#26102;&#33080;&#29677;/&#32467;&#33337;&#22270;&#23618;&#65292;&#21491;&#19979;&#35282;&#26174;&#31034;"&#21382;&#21490;&#22238;&#25918;&#183;&#23454;&#26102;&#36319;&#36394;&#24050;&#26263;&#20572;"&#24275;&#31192;</p>
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003;
+              &#21382;&#21490;&#25773;&#25918;&#26102;&#23454;&#26102;&#36319;&#36394;&#33258;&#21160;&#26263;&#20572;
+            </div>
+            <p style="font-size:11px;color:#64748b;">
+              &#26102;&#38388;&#28216;&#26631;&#31163;&#24403;&#21069;&#36229;&#36807; 3
+              &#23567;&#26102;&#26102;&#65292;&#33258;&#21160;&#28165;&#31354;&#24182;&#20572;&#27979;&#36742;&#33719;&#23454;&#26102;&#33080;&#29677;/&#32467;&#33337;&#22270;&#23618;&#65292;&#21491;&#19979;&#35282;&#26174;&#31034;"&#21382;&#21490;&#22238;&#25918;&#183;&#23454;&#26102;&#36319;&#36394;&#24050;&#26263;&#20572;"&#24275;&#31192;
+            </p>
           </div>
           <div class="glass p-4 roadmap-done">
-            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003; AI &#25126;&#22330;&#30410;&#36848;&#21319;&#32423;&#20026;&#39030;&#32423; Tab</div>
-            <p style="font-size:11px;color:#64748b;">&#23558; AI &#32508;&#36848;&#20174;&#24773;&#25253;&#21015;&#34920;&#24213;&#37096;&#25240;&#21472;&#21306;&#25552;&#21319;&#20026;&#12304;&#9876; AI&#25126;&#22330;&#32508;&#36848;&#12305;&#29420;&#31435;&#20840;&#23631; Tab&#65292;&#19982;&#12304;&#24773;&#25253;&#26032;&#38395;&#12305;&#24182;&#21015;&#39030;&#32423;&#23548;&#33322;</p>
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">&#10003; AI
+              &#25126;&#22330;&#30410;&#36848;&#21319;&#32423;&#20026;&#39030;&#32423; Tab</div>
+            <p style="font-size:11px;color:#64748b;">&#23558; AI
+              &#32508;&#36848;&#20174;&#24773;&#25253;&#21015;&#34920;&#24213;&#37096;&#25240;&#21472;&#21306;&#25552;&#21319;&#20026;&#12304;&#9876;
+              AI&#25126;&#22330;&#32508;&#36848;&#12305;&#29420;&#31435;&#20840;&#23631;
+              Tab&#65292;&#19982;&#12304;&#24773;&#25253;&#26032;&#38395;&#12305;&#24182;&#21015;&#39030;&#32423;&#23548;&#33322;
+            </p>
           </div>
         </div>
       </div>
@@ -1643,12 +1662,14 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
             <p style="font-size:11px;color:#64748b;">基于 24-72h 滑动窗口历史数据推演冲突升级/降级概率，生成概率分布图</p>
           </div>
           <div class="glass p-4 roadmap-active" style="border-color:#a855f733;">
-            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">✅ 经济指标联动 (Dual-Track Radar)</div>
+            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">✅ 经济指标联动 (Dual-Track Radar)
+            </div>
             <p style="font-size:11px;color:#caaee2;">接入原油行情（WTI Crude Oil），升级前端双轨仪表盘，与军事事件和比特币做资金避险相关性双维度组合分析</p>
           </div>
           <div class="glass p-4 roadmap-active" style="border-color:#a855f733;">
             <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ LLM 调度安全保障</div>
-            <p style="font-size:11px;color:#caaee2;">asyncio.Lock 防止定时任务重叠重入，Ollama Semaphore(2) 并发上限，满载立即返回 503 而非无限排队</p>
+            <p style="font-size:11px;color:#caaee2;">asyncio.Lock 防止定时任务重叠重入，Ollama Semaphore(2) 并发上限，满载立即返回 503 而非无限排队
+            </p>
           </div>
           <div class="glass p-4 roadmap-active" style="border-color:#a855f733;">
             <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ AI 推理引擎实时可视化</div>

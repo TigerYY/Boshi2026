@@ -49,25 +49,27 @@ echo "║   BoShi US-Iran War Situation System     ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
+# ── 获取局域网 IP ─────────────────────────────────────────────────────────────
+# 用于提示用户如何从其它设备访问
+LAN_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -n 1)
+[ -z "$LAN_IP" ] && LAN_IP="127.0.0.1"
+
 # ── 检查 Ollama ───────────────────────────────────────────────────────────────
-if ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "⚠  Ollama 未运行，请先启动 Ollama 服务"
-  echo "   运行: ollama serve"
+# 优先使用环境变量中指定的 OLLAMA_HOST
+_OLLAMA_URL=${OLLAMA_HOST:-"http://localhost:11434"}
+_OLLAMA_URL=${_OLLAMA_URL%/} # 移除末尾斜杠
+
+if ! curl -s "$_OLLAMA_URL/api/tags" > /dev/null 2>&1; then
+  echo "⚠  Ollama 未运行或无法连接: $_OLLAMA_URL"
+  echo "   请确保 Ollama 服务已启动，或检查 OLLAMA_HOST 环境变量"
   echo ""
-fi
-
-if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "qwen3-vl"; then
-  echo "✓  Ollama qwen3-vl:8b 模型已就绪"
 else
-  echo "⚠  qwen3-vl:8b 模型未找到，请先拉取:"
-  echo "   ollama pull qwen3-vl:8b"
-fi
-
-if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "qwen2.5"; then
-  echo "✓  Ollama qwen2.5:3b 模型已就绪"
-else
-  echo "⚠  qwen2.5:3b 模型未找到，请先拉取:"
-  echo "   ollama pull qwen2.5:3b"
+  if curl -s "$_OLLAMA_URL/api/tags" 2>/dev/null | grep -q "qwen3-vl"; then
+    echo "✓  Ollama qwen3-vl:8b 模型已就绪 @ $_OLLAMA_URL"
+  else
+    echo "⚠  qwen3-vl:8b 模型未找到，请先拉取:"
+    echo "   ollama pull qwen3-vl:8b"
+  fi
 fi
 
 # ── 启动后端 ──────────────────────────────────────────────────────────────────
@@ -87,6 +89,7 @@ if ! command -v uvicorn > /dev/null 2>&1; then
   pip install -r requirements.txt
 fi
 
+# 确保后端绑定到 0.0.0.0 以允许外部访问
 uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$ROOT_DIR/.backend.pid"
@@ -109,6 +112,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # 将实际后端端口注入 vite proxy，避免硬编码 8100
+# 并通过 --host 参数允许局域网访问
 VITE_BACKEND_PORT=$BACKEND_PORT npm run dev -- --port "$FRONTEND_PORT" --host &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "$ROOT_DIR/.frontend.pid"
@@ -119,9 +123,9 @@ echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║  系统已启动！                                        ║"
 echo "║                                                      ║"
-printf "║  🌐 前端:   http://localhost:%-5s                  ║\n" "$FRONTEND_PORT"
-printf "║  🔧 API:    http://localhost:%-5s                  ║\n" "$BACKEND_PORT"
-printf "║  📚 文档:   http://localhost:%-5s/docs             ║\n" "$BACKEND_PORT"
+printf "║  🌐 本地入口:   http://localhost:%-5s               ║\n" "$FRONTEND_PORT"
+printf "║  📱 远程访问:   http://%-15s:%-5s        ║\n" "$LAN_IP" "$FRONTEND_PORT"
+printf "║  🔧 API 文档:   http://localhost:%-5s/docs          ║\n" "$BACKEND_PORT"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 echo "按 Ctrl+C 停止所有服务"

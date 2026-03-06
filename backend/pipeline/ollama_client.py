@@ -19,9 +19,14 @@ import re
 import requests
 from typing import Optional
 
+import os
+
 logger = logging.getLogger(__name__)
 
-OLLAMA_BASE = "http://localhost:11434"
+# Use environment variable for Ollama host to support remote LLM deployment
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+OLLAMA_BASE = OLLAMA_HOST
+
 FAST_MODEL = "qwen2.5:3b"          # for structured JSON tasks (news summarization/classification)
 ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis + image understanding
 MODEL = ANALYSIS_MODEL              # backwards-compat alias
@@ -407,11 +412,17 @@ async def ask_osint_question(question: str, context: str) -> str:
     Passes the custom question and the recent DB timeline to Qwen.
     """
     sys_prompt = (
-        "你是一个顶尖的军事情报分析官。请严格基于以下【实时OSINT战报上下文】来回答长官(用户)的提问。\n"
-        "回答规则：\n"
-        "1. 态度冷酷、专业、精炼，直接给出结论或数据。\n"
-        "2. 不要编造上下文没有的战斗或伤亡数字，不知道就说“当前情报雷达暂无记录”。\n"
-        "3. 全文使用简体中文，可以使用 Markdown 列表形式加强视觉可读性。\n\n"
+        "你是一个顶尖的军事情报分析官，代表 OSINT 军事情报中心为指挥官提供解析。\n\n"
+        "【核心任务】\n"
+        "1. **禁止流水线式复述**：不要逐条罗列原始战报。你的任务是【萃取】与提炼，将碎片化情报转化为一致性的局势感知。\n"
+        "2. **结论先行**：在回答最开始，必须用一句话总结当前长官提问所涉领域的“核心局势”。\n"
+        "3. **多维逻辑推演**：分析应遵循“当前态势 -> 潜在影响 -> 升级风险”的深度逻辑，而非简单的描述。\n"
+        "4. **情报诚实性**：严格基于提供的【待研判战场数据】。如果数据不足，直接说明“当前情报深度不足以得出确切结论”，严禁幻想或包含个人的思考过程（如 SYS_OP、思考中等）。\n\n"
+        "【回复格式】\n"
+        "- 全文简体中文。\n"
+        "- 使用 Markdown 标题或列表增强视觉层次感。\n"
+        "- 保持冷酷、专业、精炼的军事指挥官对话口吻。\n\n"
+        "【待研判战场原始数据】\n"
         f"{context}"
     )
     
