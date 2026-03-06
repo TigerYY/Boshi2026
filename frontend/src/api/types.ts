@@ -132,6 +132,7 @@ export interface LiveFlightsResponse {
   aircraft: Aircraft[];
   cached: boolean;
   count: number;
+  timestamp?: string;
 }
 
 export interface Ship {
@@ -152,6 +153,7 @@ export interface LiveShipsResponse {
   cached: boolean;
   count: number;
   demo: boolean;
+  timestamp?: string;
 }
 
 export type WsMessage =

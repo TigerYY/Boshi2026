@@ -89,6 +89,10 @@ async def manual_refresh(
         # Step 3: generate / refresh battlefield analysis report
         await run_daily_analysis()
 
+        # Step 4: take a fresh snapshot of aircraft and vessels
+        from scheduler import run_live_snapshot
+        await run_live_snapshot()
+
         await ws_manager.broadcast({
             "type": "manual_refresh_done",
             "ai_processed": count,

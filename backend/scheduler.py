@@ -12,6 +12,7 @@ from scrapers.sources import SCRAPER_MAP
 from pipeline.processor import save_raw_articles, process_pending
 from pipeline.ollama_client import generate_daily_summary
 from scrapers.financial import fetch_btc_data
+from api.live import get_live_flights, get_live_ships
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,9 @@ async def run_all_scrapers():
         tasks = [run_scraper(sid) for sid in SCRAPER_MAP]
         await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Sync snapshot of flights/ships whenever all scrapers run
+        await run_live_snapshot()
+
         # Process with AI — broadcast status so frontend can show spinner
         await ws_manager.broadcast({
             "type": "llm_status",
@@ -182,6 +186,28 @@ async def run_finance_scraper():
                     "data": payload,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
+
+
+async def run_live_snapshot():
+    """Save periodic snapshots of live flight and vessel data for historical tracking."""
+    from models.schemas import FlightRecord, VesselRecord
+    
+    try:
+        # We call the async functions directly to get the current cached or fresh data
+        flights_resp = await get_live_flights()
+        ships_resp = await get_live_ships()
+        
+        async with AsyncSessionLocal() as db:
+            if flights_resp.get("aircraft"):
+                db.add(FlightRecord(data=flights_resp["aircraft"]))
+                
+            if ships_resp.get("ships"):
+                db.add(VesselRecord(data=ships_resp["ships"]))
+                
+            await db.commit()
+            logger.info("Saved live flights/vessels snapshot to database")
+    except Exception as e:
+        logger.error(f"Error saving live snapshot: {e}")
 
 
 async def run_daily_analysis():

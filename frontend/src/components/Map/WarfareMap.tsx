@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { useAppStore } from '../../store/useAppStore';
 import type { LayerVisibility } from '../../store/useAppStore';
 import type { MilitaryEvent, MilitaryUnit, GeoJsonFeatureCollection } from '../../api/types';
-import { fetchEventsGeoJson, fetchUnitsGeoJson, fetchZonesGeoJson, fetchLiveFlights, fetchLiveShips } from '../../api/client';
+import { fetchEventsGeoJson, fetchUnitsGeoJson, fetchZonesGeoJson, fetchLiveFlights, fetchLiveShips, fetchHistoryFlights, fetchHistoryShips } from '../../api/client';
 import { getEventIcon, getUnitIcon } from './mapIcons';
 import EventPopup from './EventPopup';
 import UnitPopup from './UnitPopup';
@@ -281,6 +281,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
   const [currentZoom, setCurrentZoom] = useState(5);
   const { refreshInterval } = useAppStore();
   const [dataVersion, setDataVersion] = useState(0);
+  const lastTrackingRequestIdRef = useRef(0);
 
   const rawEventsRef = useRef<GeoJsonFeatureCollection | null>(null);
   const rawUnitsRef = useRef<GeoJsonFeatureCollection | null>(null);
@@ -472,26 +473,52 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
   }, [timelineTo, timelineActive, dataVersion, layers.events, layers.heatmap, currentZoom]);
 
   const updateLiveTracking = useCallback(async () => {
-    if (!mapRef.current || (timelineActive && timelineTo && Date.now() - timelineTo.getTime() > 3 * 3600 * 1000)) return;
+    if (!mapRef.current) return;
+
+    const requestId = ++lastTrackingRequestIdRef.current;
+
+    // Determine if we should show history or live
+    // If timeline is active and currentDate is more than 3 mins in the past, use history
+    const isHistory = timelineActive && timelineTo && (Date.now() - timelineTo.getTime() > 3 * 60 * 1000);
+    const timestamp = timelineTo ? timelineTo.toISOString() : new Date().toISOString();
+
     const acLg = layersRef.current.aircraft;
     const shLg = layersRef.current.ships;
-    if (layers.aircraft) {
-      const data = await fetchLiveFlights();
-      acLg.clearLayers();
-      data.aircraft.filter((a: any) => !a.on_ground).forEach((ac: any) => {
-        const m = L.marker([ac.lat, ac.lon], { icon: createAircraftIcon(ac.heading, ac.on_ground, ac.origin_country), zIndexOffset: 300 });
-        m.bindPopup(`<div style="font-size:11px;min-width:160px"><div style="font-weight:700;color:#00d4ff;margin-bottom:4px">✈ ${ac.callsign}</div><div style="color:#8b9ab0;font-size:10px">${ac.origin_country}</div></div>`, { ...POPUP_OPTS });
-        acLg.addLayer(m);
-      });
-    }
-    if (layers.ships) {
-      const data = await fetchLiveShips();
-      shLg.clearLayers();
-      data.ships.forEach((sh: any) => {
-        const m = L.marker([sh.lat, sh.lon], { icon: createShipIcon(sh.heading, sh.side, sh.ship_type), zIndexOffset: 250 });
-        m.bindPopup(`<div style="font-size:11px;min-width:180px"><div style="font-weight:700;color:#00ff88;margin-bottom:4px">${sh.name}</div></div>`, { ...POPUP_OPTS });
-        shLg.addLayer(m);
-      });
+
+    try {
+      if (layers.aircraft) {
+        const data = isHistory
+          ? await fetchHistoryFlights(timestamp)
+          : await fetchLiveFlights();
+
+        if (requestId !== lastTrackingRequestIdRef.current) return;
+
+        acLg.clearLayers();
+        const aircraft = data.aircraft || [];
+        aircraft.filter((a: any) => !a.on_ground).forEach((ac: any) => {
+          const m = L.marker([ac.lat, ac.lon], { icon: createAircraftIcon(ac.heading, ac.on_ground, ac.origin_country), zIndexOffset: 300 });
+          m.bindPopup(`<div style="font-size:11px;min-width:160px"><div style="font-weight:700;color:#00d4ff;margin-bottom:4px">✈ ${ac.callsign}</div><div style="color:#8b9ab0;font-size:10px">${ac.origin_country}</div>${isHistory && data.timestamp ? `<div style="font-size:9px;color:#556677;margin-top:4px">历史记录 (${new Date(data.timestamp).toLocaleString()})</div>` : ''}</div>`, { ...POPUP_OPTS });
+          acLg.addLayer(m);
+        });
+      }
+
+      if (layers.ships) {
+        const data = isHistory
+          ? await fetchHistoryShips(timestamp)
+          : await fetchLiveShips();
+
+        if (requestId !== lastTrackingRequestIdRef.current) return;
+
+        shLg.clearLayers();
+        const ships = data.ships || [];
+        ships.forEach((sh: any) => {
+          const m = L.marker([sh.lat, sh.lon], { icon: createShipIcon(sh.heading, sh.side, sh.ship_type), zIndexOffset: 250 });
+          m.bindPopup(`<div style="font-size:11px;min-width:180px"><div style="font-weight:700;color:#00ff88;margin-bottom:4px">${sh.name}</div>${isHistory && data.timestamp ? `<div style="font-size:9px;color:#556677;margin-top:2px">历史记录 (${new Date(data.timestamp).toLocaleString()})</div>` : ''}</div>`, { ...POPUP_OPTS });
+          shLg.addLayer(m);
+        });
+      }
+    } catch (err) {
+      console.error('Tracking update error:', err);
     }
   }, [layers.aircraft, layers.ships, timelineActive, timelineTo]);
 
@@ -505,7 +532,16 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     updateLiveTracking();
     const interval = setInterval(updateLiveTracking, refreshInterval * 60 * 1000);
     return () => clearInterval(interval);
+    // Note: mapping dependencies correctly so it updates on manual trigger/auto-refresh
   }, [updateLiveTracking, refreshInterval]);
+
+  // Handle timeline dragging specifically with a debounced or reactive feel
+  useEffect(() => {
+    if (timelineActive && timelineTo) {
+      const timer = setTimeout(updateLiveTracking, 100); // 100ms debounce for dragging
+      return () => clearTimeout(timer);
+    }
+  }, [timelineTo, timelineActive, updateLiveTracking]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

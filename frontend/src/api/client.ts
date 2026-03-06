@@ -72,5 +72,11 @@ export const fetchSystemStatus = () =>
 export const fetchLiveFlights = () =>
   http.get<LiveFlightsResponse>('/api/flights/live').then(r => r.data);
 
+export const fetchHistoryFlights = (timestamp: string) =>
+  http.get<LiveFlightsResponse>('/api/flights/history', { params: { timestamp } }).then(r => r.data);
+
 export const fetchLiveShips = () =>
   http.get<LiveShipsResponse>('/api/ships/live').then(r => r.data);
+
+export const fetchHistoryShips = (timestamp: string) =>
+  http.get<LiveShipsResponse>('/api/ships/history', { params: { timestamp } }).then(r => r.data);

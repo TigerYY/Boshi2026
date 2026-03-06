@@ -117,3 +117,19 @@ class FinancialMetric(Base):
     change_24h = Column(Float)                        # Percentage change -5.0 to 5.0 etc.
     volume = Column(Float)
     fetched_at = Column(DateTime, server_default=func.now())
+
+
+class FlightRecord(Base):
+    __tablename__ = "flight_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, server_default=func.now(), index=True)
+    data = Column(JSON)  # List of aircraft objects
+
+
+class VesselRecord(Base):
+    __tablename__ = "vessel_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, server_default=func.now(), index=True)
+    data = Column(JSON)  # List of ship objects

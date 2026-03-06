@@ -12,8 +12,11 @@ import os
 import time
 import logging
 import requests as req_lib
-
-from fastapi import APIRouter
+from datetime import datetime, timedelta
+from sqlalchemy import select
+from models import AsyncSessionLocal, get_db
+from models.schemas import FlightRecord, VesselRecord
+from fastapi import APIRouter, Depends, Query
 
 router = APIRouter(prefix="/api", tags=["live"])
 logger = logging.getLogger(__name__)
@@ -347,3 +350,59 @@ async def get_live_ships():
     final_data = known + others[:400]
     
     return {"ships": final_data, "cached": False, "count": len(final_data), "demo": False}
+
+
+@router.get("/flights/history")
+async def get_history_flights(
+    timestamp: datetime = Query(...),
+    db: AsyncSessionLocal = Depends(get_db)
+):
+    """Get the closest flight snapshot to the given timestamp."""
+    # Find the record closest to requested timestamp (within a 15-min window)
+    stmt = (
+        select(FlightRecord)
+        .where(FlightRecord.timestamp >= timestamp - timedelta(minutes=15))
+        .where(FlightRecord.timestamp <= timestamp + timedelta(minutes=15))
+        .order_by(func.abs(func.julianday(FlightRecord.timestamp) - func.julianday(timestamp)))
+        .limit(1)
+    )
+    # Note: func.abs/julianday is SQLite specific for closest match
+    from sqlalchemy import func
+    result = await db.execute(stmt)
+    record = result.scalar_one_or_none()
+    
+    if not record:
+        return {"aircraft": [], "count": 0, "timestamp": None}
+        
+    return {
+        "aircraft": record.data,
+        "count": len(record.data),
+        "timestamp": record.timestamp
+    }
+
+
+@router.get("/ships/history")
+async def get_history_ships(
+    timestamp: datetime = Query(...),
+    db: AsyncSessionLocal = Depends(get_db)
+):
+    """Get the closest vessel snapshot to the given timestamp."""
+    from sqlalchemy import func
+    stmt = (
+        select(VesselRecord)
+        .where(VesselRecord.timestamp >= timestamp - timedelta(minutes=15))
+        .where(VesselRecord.timestamp <= timestamp + timedelta(minutes=15))
+        .order_by(func.abs(func.julianday(VesselRecord.timestamp) - func.julianday(timestamp)))
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    record = result.scalar_one_or_none()
+    
+    if not record:
+        return {"ships": [], "count": 0, "timestamp": None}
+        
+    return {
+        "ships": record.data,
+        "count": len(record.data),
+        "timestamp": record.timestamp
+    }
