@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useAppStore } from '../../store/useAppStore';
 import type { LayerVisibility } from '../../store/useAppStore';
-import type { MilitaryEvent, MilitaryUnit, Aircraft, Ship } from '../../api/types';
+import type { MilitaryEvent, MilitaryUnit, Aircraft, Ship, GeoJsonFeatureCollection } from '../../api/types';
 import { fetchEventsGeoJson, fetchUnitsGeoJson, fetchZonesGeoJson, fetchLiveFlights, fetchLiveShips } from '../../api/client';
 import { getEventIcon, getUnitIcon } from './mapIcons';
 import EventPopup from './EventPopup';
@@ -417,17 +417,49 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     };
   }, []);
 
-  // Load military events, units, zones (with debounce for timeline playback)
-  const loadData = useCallback(async () => {
+  const rawEventsRef = useRef<GeoJsonFeatureCollection | null>(null);
+  const rawUnitsRef = useRef<GeoJsonFeatureCollection | null>(null);
+  const rawZonesRef = useRef<GeoJsonFeatureCollection | null>(null);
+  const eventMarkersRef = useRef<Array<{ marker: L.Marker, time: number }>>([]);
+  const [dataVersion, setDataVersion] = useState(0);
+
+  const fetchRawData = useCallback(async () => {
     if (!mapRef.current) return;
-    setLoading(true);
+    try {
+      setLoading(true);
+      const params: { since?: string } = {};
+      // Fetch everything since timelineFrom. If disabled, fetch all.
+      if (timelineFrom) params.since = timelineFrom.toISOString();
+
+      const [eventsGeo, unitsGeo, zonesGeo] = await Promise.all([
+        fetchEventsGeoJson(params),
+        fetchUnitsGeoJson(),
+        fetchZonesGeoJson(),
+      ]);
+      rawEventsRef.current = eventsGeo;
+      rawUnitsRef.current = unitsGeo;
+      rawZonesRef.current = zonesGeo;
+      setDataVersion(v => v + 1);
+    } catch (err) {
+      console.error('Map raw data fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [timelineFrom]);
+
+  useEffect(() => {
+    fetchRawData();
+  }, [fetchRawData]);
+
+  const buildMapLayers = useCallback(() => {
+    if (!mapRef.current) return;
 
     // ── Animated hotspot divIcons ──────────────────────────────────────────
     const hotspotsLg = layersRef.current.hotspots;
     if (hotspotsLg) {
       hotspotsLg.clearLayers();
 
-      // Render standard AI hotspots
+      // Standard AI hotspots
       for (const h of hotspots) {
         const marker = L.marker([h.lat, h.lon], {
           icon: createHotspotIcon(h.score, h.name),
@@ -444,13 +476,12 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         hotspotsLg.addLayer(marker);
       }
 
-      // Render custom Abu Dhabi warning marker if risk data exists
+      // Custom Abu Dhabi warning marker
       if (abuDhabiRisk !== null) {
-        // UAE Abu Dhabi Approximate Coord: 24.4539° N, 54.3773° E
         const uaeLat = 24.4539;
         const uaeLon = 54.3773;
         const color = abuDhabiRisk > 50 ? '#ff2244' : abuDhabiRisk > 30 ? '#ffdd00' : '#00ff88';
-        const dur = abuDhabiRisk > 50 ? '1s' : '3s'; // Faster pulse if high risk
+        const dur = abuDhabiRisk > 50 ? '1s' : '3s';
 
         const abuDhabiIcon = L.divIcon({
           className: '',
@@ -473,7 +504,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
                 background:rgba(0,0,0,0.8); border:1px solid ${color}; color:${color};
                 padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold;
                 pointer-events:none;
-              ">阿布扎比本土安全监针 (风险 ${abuDhabiRisk.toFixed(0)})</div>
+              ">阿布扎比区域雷达 (风险 ${abuDhabiRisk.toFixed(0)})</div>
             </div>
           `,
           iconSize: [40, 40],
@@ -482,8 +513,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
 
         const adMarker = L.marker([uaeLat, uaeLon], {
           icon: abuDhabiIcon,
-          zIndexOffset: 150, // Higher than standard hotspots
-          interactive: false // It's mainly an overlay shield, not clickable
+          zIndexOffset: 150,
+          interactive: false
         });
 
         hotspotsLg.addLayer(adMarker);
@@ -491,33 +522,18 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     }
 
     try {
-      const params: { since?: string; until?: string } = {};
-      if (timelineFrom) params.since = timelineFrom.toISOString();
-      if (timelineTo) params.until = timelineTo.toISOString();
-
-      const [eventsGeo, unitsGeo, zonesGeo] = await Promise.all([
-        fetchEventsGeoJson(params),
-        fetchUnitsGeoJson(),
-        fetchZonesGeoJson(),
-      ]);
-
       // ── Events ────────────────────────────────────────────────────────────
       const eventsLg = layersRef.current.events;
       eventsLg.clearLayers();
-      if (layers.events) {
-        for (const f of eventsGeo.features) {
+      eventMarkersRef.current = [];
+      if (layers.events && rawEventsRef.current) {
+        for (const f of rawEventsRef.current.features) {
           const e = f.properties as unknown as MilitaryEvent;
           const coords = f.geometry.coordinates as [number, number];
-
-          // Deterministic Jittering: prevent overlapping markers for exact same city/coordinates
-          let offsetLat = 0;
-          let offsetLon = 0;
+          let offsetLat = 0, offsetLon = 0;
           if (e.id) {
-            // Pseudo-random deterministic offsets based on unique event ID
             const r1 = Math.abs(Math.sin(e.id * 12.9898 + 78.233) * 43758.5453) % 1;
             const r2 = Math.abs(Math.cos(e.id * 4.1415 + 13.567) * 23456.7891) % 1;
-
-            // Spread radius max ~0.08 degrees to visually separate markers in the same city cluster
             offsetLat = (r1 - 0.5) * 0.12;
             offsetLon = (r2 - 0.5) * 0.12;
           }
@@ -526,6 +542,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
           marker.bindPopup(renderToStaticMarkup(<EventPopup event={e} />), { ...POPUP_OPTS, maxWidth: 300 });
           marker.on('click', () => onEventSelect?.(e));
           eventsLg.addLayer(marker);
+          eventMarkersRef.current.push({ marker, time: new Date(e.occurred_at).getTime() });
         }
       }
 
@@ -536,8 +553,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       for (const [side, layerKey] of unitLayerKeys) {
         const lg = layersRef.current[layerKey];
         lg.clearLayers();
-        if (layers[layerKey]) {
-          for (const f of unitsGeo.features) {
+        if (layers[layerKey] && rawUnitsRef.current) {
+          for (const f of rawUnitsRef.current.features) {
             const u = f.properties as unknown as MilitaryUnit;
             if (u.side !== side) continue;
             const coords = f.geometry.coordinates as [number, number];
@@ -551,8 +568,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       // ── Control zones ─────────────────────────────────────────────────────
       const zonesLg = layersRef.current.control_zones;
       zonesLg.clearLayers();
-      if (layers.control_zones) {
-        for (const f of zonesGeo.features) {
+      if (layers.control_zones && rawZonesRef.current) {
+        for (const f of rawZonesRef.current.features) {
           const props = f.properties as { name: string; zone_type: string; side: string };
           const color = ZONE_COLORS[props.zone_type] || '#888';
           const geoLayer = L.geoJSON(f as GeoJSON.Feature, {
@@ -572,17 +589,58 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         }
       }
     } catch (err) {
-      console.error('Map data load error:', err);
-    } finally {
-      setLoading(false);
+      console.error('Map layers build error:', err);
     }
-  }, [layers, timelineFrom, timelineTo, onEventSelect, hotspots]);
+  }, [layers, hotspots, abuDhabiRisk, onEventSelect, dataVersion]);
 
-  // Debounce map reload during timeline playback
   useEffect(() => {
-    const timer = setTimeout(() => loadData(), 800);
-    return () => clearTimeout(timer);
-  }, [loadData]);
+    buildMapLayers();
+  }, [buildMapLayers]);
+
+  // Zero-latency sliding window opacity filtering for markers (No network debouncing)
+  useEffect(() => {
+    if (!timelineActive || !timelineTo) {
+      // Show all active markers at full opacity
+      for (const { marker } of eventMarkersRef.current) {
+        marker.setOpacity(1.0);
+        const el = marker.getElement();
+        if (el && el.style.display === 'none') el.style.display = 'block';
+      }
+      return;
+    }
+
+    const tTo = timelineTo.getTime();
+    const t3d = tTo - 3 * 24 * 3600 * 1000;  // 3天之内：强光热区
+    const t14d = tTo - 14 * 24 * 3600 * 1000; // 14天余波边界
+
+    for (const { marker, time } of eventMarkersRef.current) {
+      let opacity = 0;
+      let display = 'block';
+
+      if (time > tTo) {
+        display = 'none'; // 时间游标之后的事件（未来），隐藏
+      } else if (time >= t3d) {
+        opacity = 1.0; // 3天内：全亮强显
+      } else if (time >= t14d) {
+        // 14天余波：从 0.15 到 1.0 线性衰减（越旧越暗）
+        const p = (time - t14d) / (t3d - t14d);
+        opacity = 0.15 + p * 0.85;
+      } else {
+        display = 'none'; // 超过 14 天：彻底清出图层
+      }
+
+      const el = marker.getElement();
+      if (!el) continue;
+
+      if (display === 'none') {
+        if (marker.options.opacity !== 0) marker.setOpacity(0);
+        if (el.style.display !== 'none') el.style.display = 'none';
+      } else {
+        if (marker.options.opacity !== opacity) marker.setOpacity(opacity);
+        if (el.style.display === 'none') el.style.display = 'block';
+      }
+    }
+  }, [timelineTo, timelineActive, dataVersion, layers.events]);
 
   // ── Live aircraft + ships polling ──────────────────────────────────────────
   const updateLiveTracking = useCallback(async () => {
@@ -670,18 +728,33 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     }
   }, [layers.video_feeds]);
 
-  // Poll live tracking synced with global refresh interval
+  // Poll live tracking — paused when timeline is in historical mode (cursor > 3h from now)
+  const isHistoricalMode = timelineActive && timelineTo != null &&
+    (Date.now() - timelineTo.getTime()) > 3 * 3600 * 1000;
+
+  // Clear live layers immediately when switching to historical mode
   useEffect(() => {
+    if (!isHistoricalMode) return;
+    layersRef.current.aircraft?.clearLayers();
+    layersRef.current.ships?.clearLayers();
+    setLiveStats(null);
+  }, [isHistoricalMode]);
+
+  useEffect(() => {
+    if (isHistoricalMode) return; // don't poll during history replay
     updateLiveTracking();
     const interval = setInterval(updateLiveTracking, refreshInterval * 60 * 1000);
     return () => clearInterval(interval);
-  }, [updateLiveTracking, refreshInterval]);
+  }, [updateLiveTracking, refreshInterval, isHistoricalMode]);
 
   // Expose map refresh globally
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).__warfareMapRefresh = loadData;
+    (window as unknown as Record<string, unknown>).__warfareMapRefresh = () => {
+      fetchRawData();
+      updateLiveTracking();
+    };
     return () => { delete (window as unknown as Record<string, unknown>).__warfareMapRefresh; };
-  }, [loadData]);
+  }, [fetchRawData, updateLiveTracking]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -690,7 +763,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       <IntensityOverlay timelineActive={timelineActive} aiIntensityScore={aiIntensityScore} />
 
       {/* Live tracking status badge */}
-      {liveStats && (
+      {liveStats && !isHistoricalMode && (
         <div style={{
           position: 'absolute', bottom: timelineActive ? 120 : 14, right: 10,
           background: 'rgba(10,14,20,0.88)', border: '1px solid #1e2d40',
@@ -702,6 +775,18 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
           <span style={{ color: '#00d4ff' }}>✈ {liveStats.aircraft}</span>
           <span style={{ color: '#1e2d40' }}>|</span>
           <span style={{ color: '#00ff88' }}>⛵ {liveStats.ships}</span>
+        </div>
+      )}
+      {isHistoricalMode && (
+        <div style={{
+          position: 'absolute', bottom: timelineActive ? 120 : 14, right: 10,
+          background: 'rgba(10,14,20,0.88)', border: '1px solid #334455',
+          borderRadius: 4, padding: '4px 10px', zIndex: 900,
+          display: 'flex', gap: 8, alignItems: 'center', fontSize: 10,
+          color: '#556677', transition: 'bottom 0.25s ease',
+        }}>
+          <span>⏸</span>
+          <span>历史回放 · 实时追踪已暂停</span>
         </div>
       )}
 

@@ -6,7 +6,6 @@ import {
 import { fetchIntensityTrend } from '../../api/client';
 import type { IntensityTrend, AnalysisReport } from '../../api/types';
 import MacroRadar from './MacroRadar';
-import OsintTerminal from './OsintTerminal';
 
 const EVENT_COLORS: Record<string, string> = {
   airstrike: '#ff6b35', missile: '#ff2244', naval: '#00d4ff',
@@ -76,39 +75,63 @@ export default function AnalysisPanel({ report, financeData }: AnalysisPanelProp
               <XAxis dataKey="date" tick={{ fill: '#445566', fontSize: 9 }} tickFormatter={d => d.slice(5)} />
               <YAxis tick={{ fill: '#445566', fontSize: 9 }} />
               <Tooltip
-                contentStyle={{ background: '#0d1117', border: '1px solid #1e2d40', fontSize: 10 }}
-                labelStyle={{ color: '#00d4ff' }}
-                itemStyle={{ color: '#ff6b35' }}
+                contentStyle={{
+                  background: 'rgba(13, 17, 23, 0.95)',
+                  border: '1px solid #30363d',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                }}
+                labelStyle={{ color: '#00d4ff', marginBottom: 4 }}
+                itemStyle={{ color: '#ff6b35', fontSize: 10, padding: 0 }}
               />
               <Area type="monotone" dataKey="score" stroke="#ff6b35" fill="url(#intensityGrad)" strokeWidth={1.5} />
             </AreaChart>
           </ResponsiveContainer>
 
           {/* Event type distribution pie */}
-          <div style={{ fontSize: 10, color: '#445566', marginTop: 16, marginBottom: 6 }}>事件类型分布</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie
-                data={trend.event_type_dist.map(d => ({
-                  ...d,
-                  name: EVENT_LABELS[d.type] || d.type,
-                }))}
-                cx="50%" cy="50%" innerRadius={38} outerRadius={58}
-                dataKey="count" nameKey="name"
-              >
-                {trend.event_type_dist.map(entry => (
-                  <Cell key={entry.type} fill={EVENT_COLORS[entry.type] || '#888'} />
-                ))}
-              </Pie>
-              <Legend
-                iconType="circle" iconSize={8}
-                formatter={v => <span style={{ fontSize: 10, color: '#8b9ab0' }}>{v}</span>}
-              />
-              <Tooltip
-                contentStyle={{ background: '#0d1117', border: '1px solid #1e2d40', fontSize: 10 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ fontSize: 10, color: '#445566', marginTop: 16, marginBottom: 8 }}>事件类型分布 (过去{days}天)</div>
+          <div style={{ background: '#0a0e14', border: '1px solid #1e2d4088', borderRadius: 4, padding: '5px 0' }}>
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={trend.event_type_dist.map(d => ({
+                    ...d,
+                    name: EVENT_LABELS[d.type] || d.type,
+                  }))}
+                  cx="35%" cy="50%" innerRadius={42} outerRadius={62}
+                  paddingAngle={3}
+                  stroke="none"
+                  dataKey="count" nameKey="name"
+                >
+                  {trend.event_type_dist.map(entry => (
+                    <Cell key={entry.type} fill={EVENT_COLORS[entry.type] || '#888'} />
+                  ))}
+                </Pie>
+                <Legend
+                  layout="vertical" verticalAlign="middle" align="right"
+                  iconType="circle" iconSize={8}
+                  formatter={(v, entry: any) => (
+                    <span style={{ fontSize: 11, color: '#8b9ab0', marginLeft: 2 }}>
+                      {v} <span style={{ color: '#00d4ff', fontSize: 10, marginLeft: 8, opacity: 0.8 }}>{entry.payload.count}</span>
+                    </span>
+                  )}
+                  wrapperStyle={{ paddingRight: 15 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(13, 17, 23, 0.95)',
+                    border: '1px solid #30363d',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                  }}
+                  itemStyle={{ color: '#e6edf3', fontSize: 10, padding: '2px 0' }}
+                  labelStyle={{ display: 'none' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
 
           {/* Summary stats */}
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -128,11 +151,6 @@ export default function AnalysisPanel({ report, financeData }: AnalysisPanelProp
 
           {/* Doomsday Escalation Radar */}
           <MacroRadar report={report} financeData={financeData} />
-
-          {/* OSINT Natural Language Query Terminal */}
-          <div style={{ marginTop: 20, height: 350, flexShrink: 0 }}>
-            <OsintTerminal />
-          </div>
         </>
       )}
     </div>

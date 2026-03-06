@@ -50,6 +50,13 @@ async def trigger_analysis(
 ):
     """Manually trigger AI analysis generation."""
     async def _run():
+        from scheduler import ws_manager
+        await ws_manager.broadcast({
+            "type": "llm_status",
+            "job": "daily_analysis",
+            "state": "running",
+            "label": "Qwen3正在手动生成AI战场综述...",
+        })
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         async with __import__("models", fromlist=["AsyncSessionLocal"]).AsyncSessionLocal() as session:
             
@@ -101,6 +108,12 @@ async def trigger_analysis(
 
             result = await generate_daily_summary(events_text, news_text, financial_text=financial_text)
             if result is None:
+                await ws_manager.broadcast({
+                    "type": "llm_status",
+                    "job": "daily_analysis",
+                    "state": "idle",
+                    "label": "无新战情，暂不生成综述",
+                })
                 return  # no input data, skip writing hollow report
             report = AnalysisReport(
                 report_type="daily_summary",
@@ -114,10 +127,17 @@ async def trigger_analysis(
                 escalation_probability=result.get("escalation_probability", 50.0),
                 market_correlation=result.get("market_correlation", ""),
                 abu_dhabi_risk=result.get("abu_dhabi_risk", 10.0),
-                abu_dhabi_status=result.get("abu_dhabi_status", ""),
+                abu_dhabi_status=result.get("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。"),
             )
             session.add(report)
             await session.commit()
+            
+            await ws_manager.broadcast({
+                "type": "llm_status",
+                "job": "daily_analysis",
+                "state": "idle",
+                "label": "AI综述手动生成完成",
+            })
 
     background_tasks.add_task(_run)
     return {"status": "Analysis generation started in background"}

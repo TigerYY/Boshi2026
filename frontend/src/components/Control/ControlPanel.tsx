@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { fetchSources, updateSource, triggerRefresh, fetchSystemStatus, fetchOllamaHealth } from '../../api/client';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import type { ScraperSource, SystemStatus } from '../../api/types';
 import type { RefreshPhase } from '../../App';
 
@@ -31,6 +32,16 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
   const [sources, setSources] = useState<ScraperSource[]>([]);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'unavailable' | 'loading'>('loading');
+
+  // Real-time LLM job status: keyed by job name
+  const [llmJobs, setLlmJobs] = useState<Record<string, { state: string; label: string; ts: number }>>({});
+
+  useWebSocket((msg) => {
+    if (msg.type === 'llm_status') {
+      const { job, state, label } = msg;
+      setLlmJobs(prev => ({ ...prev, [job]: { state, label, ts: Date.now() } }));
+    }
+  });
 
   const isRefreshing = refreshPhase !== 'idle';
 
@@ -77,6 +88,42 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+
+      {/* AI Engine Status — real-time via WebSocket */}
+      <div style={{ padding: '10px', borderBottom: '1px solid #1e2d40' }}>
+        <div style={{ fontSize: 10, color: '#445566', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI 推理引擎</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {[
+            { key: 'news_processing', label: '战报处理' },
+            { key: 'daily_analysis', label: '战场综述' },
+          ].map(({ key, label }) => {
+            const job = llmJobs[key];
+            const state = job?.state ?? 'idle';
+            const dotColor = state === 'running' ? '#00d4ff' : state === 'error' ? '#ff2244' : state === 'skipped' ? '#ffdd00' : '#00ff88';
+            const isRunning = state === 'running';
+            return (
+              <div key={key} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '5px 8px', background: '#0a0e14',
+                border: `1px solid ${dotColor}22`, borderRadius: 3,
+              }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: dotColor,
+                  boxShadow: isRunning ? `0 0 6px ${dotColor}` : 'none',
+                  flexShrink: 0,
+                  animation: isRunning ? 'pulse 1.2s infinite' : 'none',
+                }} />
+                <span style={{ fontSize: 10, color: '#8b9ab0', minWidth: 52 }}>{label}</span>
+                <span style={{ fontSize: 10, color: dotColor, flex: 1 }}>
+                  {job ? job.label : '等待中'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* System Status */}
       <div style={{ padding: '10px', borderBottom: '1px solid #1e2d40' }}>
         <div style={{ fontSize: 10, color: '#445566', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>系统状态</div>

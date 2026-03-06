@@ -54,6 +54,19 @@ async def manual_refresh(
     from models import AsyncSessionLocal
 
     async def _run():
+        await ws_manager.broadcast({
+            "type": "llm_status",
+            "job": "news_processing",
+            "state": "running",
+            "label": "AI正在处理最新战报...",
+        })
+        await ws_manager.broadcast({
+            "type": "llm_status",
+            "job": "daily_analysis",
+            "state": "running",
+            "label": "Qwen3正在生成AI战场综述...",
+        })
+
         # Step 1: scrape + AI process new items (process_pending runs inside run_all_scrapers)
         if source_id:
             await run_scraper(source_id)
@@ -63,15 +76,15 @@ async def manual_refresh(
         # Step 2: also process any pre-existing unprocessed items (backlog from retranslate)
         from models import NewsItem as NewsItemModel
         from sqlalchemy import func
-        async with AsyncSessionLocal() as db:
-            backlog = await db.scalar(
+        async with AsyncSessionLocal() as db_session:
+            backlog = await db_session.scalar(
                 select(func.count(NewsItemModel.id)).where(NewsItemModel.processed == False)
             )
 
         count = 0
         if backlog and backlog > 0:
-            async with AsyncSessionLocal() as db:
-                count = await process_pending(db, limit=min(backlog, 50))
+            async with AsyncSessionLocal() as db_session:
+                count = await process_pending(db_session, limit=min(backlog, 50))
 
         # Step 3: generate / refresh battlefield analysis report
         await run_daily_analysis()

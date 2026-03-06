@@ -54,7 +54,7 @@ export function useAppStore() {
   const [activePanel, setActivePanel] = useState<'news' | 'analysis' | 'control'>('news');
   const [, forceUpdate] = useState(0);
   const [timeline, setTimeline] = useState<TimelineState>({
-    enabled: false,
+    enabled: true,
     startDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
     endDate: new Date(),
     currentDate: new Date(),

@@ -160,4 +160,5 @@ export type WsMessage =
   | { type: 'analysis_updated'; report_type: string; intensity_score: number; timestamp: string }
   | { type: 'manual_refresh_done'; ai_processed: number; analysis_updated?: boolean; timestamp: string }
   | { type: 'finance_update'; data: Record<string, { symbol: string; price: number; change: number }>; timestamp: string }
+  | { type: 'llm_status'; job: string; state: 'running' | 'idle' | 'error' | 'skipped'; label: string }
   | { type: 'pong' };
