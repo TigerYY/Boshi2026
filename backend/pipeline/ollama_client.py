@@ -42,6 +42,7 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
+            "num_ctx": 16384,
         },
     }
     resp = requests.post(

@@ -95,7 +95,7 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                     <div style={{
                         marginTop: '16px', padding: '10px',
                         background: 'linear-gradient(90deg, rgba(0,0,0,0.4) 0%, rgba(20,28,40,0.6) 100%)',
-                        borderLeft: `2px solid ${report.abu_dhabi_risk > 30 ? '#ff6b35' : '#00d4ff'}`,
+                        borderLeft: `2px solid ${(report.abu_dhabi_risk || 0) > 30 ? '#ff6b35' : '#00d4ff'}`,
                         borderRadius: '0 4px 4px 0'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -104,15 +104,15 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
                             </div>
                             <div style={{
                                 fontSize: '12px', fontWeight: '900', fontFamily: 'monospace',
-                                color: report.abu_dhabi_risk > 50 ? '#ff2244' : report.abu_dhabi_risk > 30 ? '#ffdd00' : '#00ff88',
-                                animation: report.abu_dhabi_risk > 50 ? 'pulse 1.5s infinite' : 'none',
-                                textShadow: report.abu_dhabi_risk > 50 ? '0 0 10px #ff2244aa' : 'none'
+                                color: (report.abu_dhabi_risk || 0) > 50 ? '#ff2244' : (report.abu_dhabi_risk || 0) > 30 ? '#ffdd00' : '#00ff88',
+                                animation: (report.abu_dhabi_risk || 0) > 50 ? 'pulse 1.5s infinite' : 'none',
+                                textShadow: (report.abu_dhabi_risk || 0) > 50 ? '0 0 10px #ff2244aa' : 'none'
                             }}>
-                                {report.abu_dhabi_risk.toFixed(1)} / 100
+                                {(report.abu_dhabi_risk || 0).toFixed(1)} / 100
                             </div>
                         </div>
                         <div style={{ fontSize: '10px', color: '#8b9ab0', marginTop: '6px', lineHeight: 1.4 }}>
-                            <strong style={{ color: report.abu_dhabi_risk > 30 ? '#ff6b35' : '#00d4ff' }}>AI 评级:</strong> {report.abu_dhabi_status || "安全雷达持续监测中。"}
+                            <strong style={{ color: (report.abu_dhabi_risk || 0) > 30 ? '#ff6b35' : '#00d4ff' }}>AI 评级:</strong> {report.abu_dhabi_status || "安全雷达持续监测中。"}
                         </div>
                     </div>
                 )}

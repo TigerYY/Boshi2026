@@ -111,6 +111,10 @@ async def trigger_analysis(
                 hotspots=result.get("hotspots", []),
                 key_developments=result.get("key_developments", []),
                 outlook=result.get("outlook", ""),
+                escalation_probability=result.get("escalation_probability", 50.0),
+                market_correlation=result.get("market_correlation", ""),
+                abu_dhabi_risk=result.get("abu_dhabi_risk", 10.0),
+                abu_dhabi_status=result.get("abu_dhabi_status", ""),
             )
             session.add(report)
             await session.commit()
@@ -213,4 +217,8 @@ def _serialize(r: AnalysisReport) -> dict:
         "hotspots": r.hotspots or [],
         "key_developments": r.key_developments or [],
         "outlook": r.outlook or "",
+        "escalation_probability": r.escalation_probability,
+        "market_correlation": r.market_correlation,
+        "abu_dhabi_risk": r.abu_dhabi_risk,
+        "abu_dhabi_status": r.abu_dhabi_status,
     }
