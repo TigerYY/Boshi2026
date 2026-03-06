@@ -401,6 +401,35 @@ async def generate_daily_summary(
         }
 
 
+async def ask_osint_question(question: str, context: str) -> str:
+    """
+    RAG specialized endpoint for answering user OSINT queries.
+    Passes the custom question and the recent DB timeline to Qwen.
+    """
+    sys_prompt = (
+        "你是一个顶尖的军事情报分析官。请严格基于以下【实时OSINT战报上下文】来回答长官(用户)的提问。\n"
+        "回答规则：\n"
+        "1. 态度冷酷、专业、精炼，直接给出结论或数据。\n"
+        "2. 不要编造上下文没有的战斗或伤亡数字，不知道就说“当前情报雷达暂无记录”。\n"
+        "3. 全文使用简体中文，可以使用 Markdown 列表形式加强视觉可读性。\n\n"
+        f"{context}"
+    )
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": f"长官提问：{question}"}
+    ]
+    
+    try:
+        # For OSINT queries, we want deep analysis.
+        logger.info(f"Dispatching OSINT query: {question[:30]}...")
+        reply = await _chat(messages, temperature=0.2, num_predict=1536)
+        if not reply:
+            return "分析引擎因线路不通畅暂未返回实质性判度，请稍后再次轮询。"
+        return reply.strip()
+    except Exception as e:
+        logger.error(f"ask_osint_question OSINT Query Error: {e}")
+        return "本地情报推理模块暂时阻断连接，无法合成推演简报。"
 async def health_check() -> bool:
     try:
         resp = await asyncio.to_thread(requests.get, f"{OLLAMA_BASE}/api/tags", timeout=5)

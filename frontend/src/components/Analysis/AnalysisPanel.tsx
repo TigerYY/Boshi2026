@@ -6,6 +6,7 @@ import {
 import { fetchIntensityTrend } from '../../api/client';
 import type { IntensityTrend, AnalysisReport } from '../../api/types';
 import MacroRadar from './MacroRadar';
+import OsintTerminal from './OsintTerminal';
 
 const EVENT_COLORS: Record<string, string> = {
   airstrike: '#ff6b35', missile: '#ff2244', naval: '#00d4ff',
@@ -127,6 +128,11 @@ export default function AnalysisPanel({ report, financeData }: AnalysisPanelProp
 
           {/* Doomsday Escalation Radar */}
           <MacroRadar report={report} financeData={financeData} />
+
+          {/* OSINT Natural Language Query Terminal */}
+          <div style={{ marginTop: 20, height: 350, flexShrink: 0 }}>
+            <OsintTerminal />
+          </div>
         </>
       )}
     </div>

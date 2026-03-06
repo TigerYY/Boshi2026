@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from models import init_db
-from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router
+from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router, chat_router
 from scheduler import scheduler, ws_manager, setup_scheduler
 
 logging.basicConfig(
@@ -81,6 +81,7 @@ app.include_router(analysis_router)
 app.include_router(control_router)
 app.include_router(live_router)
 app.include_router(youtube_router)
+app.include_router(chat_router)
 
 
 @app.websocket("/ws")
