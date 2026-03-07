@@ -18,7 +18,9 @@
   --military-success: #00ff88;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -28,18 +30,35 @@ html, body, #root {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0a0e14; }
-::-webkit-scrollbar-thumb { background: #1e2d40; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #00d4ff44; }
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0e14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2d40;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00d4ff44;
+}
 
 /* Leaflet overrides */
 .leaflet-container {
   background: #060a10 !important;
   font-family: 'JetBrains Mono', monospace !important;
 }
+
 /* DarkMatter tiles are already dark — no inversion needed; subtle contrast boost only */
-.leaflet-tile-pane { filter: brightness(0.92) contrast(1.08) saturate(0.85); }
+.leaflet-tile-pane {
+  filter: brightness(0.92) contrast(1.08) saturate(0.85);
+}
+
 .leaflet-popup-content-wrapper {
   background: #0d1117 !important;
   border: 1px solid #1e2d40 !important;
@@ -49,20 +68,32 @@ html, body, #root {
   font-size: 12px !important;
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.1) !important;
 }
-.leaflet-popup-tip { background: #0d1117 !important; }
-.leaflet-popup-close-button { color: #00d4ff !important; }
+
+.leaflet-popup-tip {
+  background: #0d1117 !important;
+}
+
+.leaflet-popup-close-button {
+  color: #00d4ff !important;
+}
+
 .leaflet-control-zoom {
   border: 1px solid #1e2d40 !important;
   border-radius: 4px !important;
 }
+
 .leaflet-control-zoom a {
   background: #0d1117 !important;
   color: #00d4ff !important;
   border-bottom: 1px solid #1e2d40 !important;
 }
-.leaflet-control-zoom a:hover { background: #1e2d40 !important; }
-.leaflet-control-attribution { 
-  background: rgba(0,0,0,0.5) !important; 
+
+.leaflet-control-zoom a:hover {
+  background: #1e2d40 !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.5) !important;
   color: #444 !important;
   font-size: 9px !important;
 }
@@ -88,15 +119,15 @@ html, body, #root {
   color: #00d4ff;
 }
 
-/* Timeline track area */
+/* Timeline track area — 热力色带 */
 .timeline-track {
   position: relative;
-  min-height: 44px;
-  height: 48px;
+  min-height: 30px;
+  height: 30px;
   cursor: pointer;
   user-select: none;
   border-radius: 2px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mil-badge {
@@ -115,8 +146,13 @@ html, body, #root {
 }
 
 @keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100vh);
+  }
 }
 
 .scanline::after {
@@ -134,41 +170,59 @@ html, body, #root {
 
 /* ── Radar pulse animation (hotspot markers) ────────────────────────────── */
 @keyframes radarPulse {
-  0%   { opacity: 0.85; transform: translate(-50%, -50%) scale(0.1); }
-  80%  { opacity: 0.15; }
-  100% { opacity: 0;    transform: translate(-50%, -50%) scale(1); }
+  0% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(0.1);
+  }
+
+  80% {
+    opacity: 0.15;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .hotspot-marker {
   position: relative;
   pointer-events: auto;
 }
+
 .hotspot-core {
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  width: 7px; height: 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--hs-color, #ff2244);
   box-shadow: 0 0 8px var(--hs-color, #ff2244), 0 0 16px var(--hs-color, #ff2244);
   z-index: 3;
 }
+
 .hotspot-ring {
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 1.5px solid var(--hs-color, #ff2244);
   animation: radarPulse var(--hs-dur, 3.2s) ease-out infinite;
   pointer-events: none;
 }
+
 .hotspot-label {
   position: absolute;
-  top: calc(50% + 10px); left: 50%;
+  top: calc(50% + 10px);
+  left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px; font-weight: 600;
+  font-size: 9px;
+  font-weight: 600;
   color: var(--hs-color, #ff2244);
   text-shadow: 0 0 6px var(--hs-color, #ff2244);
   pointer-events: none;
@@ -177,27 +231,47 @@ html, body, #root {
 
 /* ── Aircraft icon ──────────────────────────────────────────────────────── */
 .aircraft-icon {
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: drop-shadow(0 0 4px var(--ac-color, #00d4ff));
   transform: rotate(var(--ac-heading, 0deg));
 }
-.aircraft-icon:hover { filter: drop-shadow(0 0 8px var(--ac-color, #00d4ff)) brightness(1.3); }
+
+.aircraft-icon:hover {
+  filter: drop-shadow(0 0 8px var(--ac-color, #00d4ff)) brightness(1.3);
+}
 
 /* ── Ship icon ──────────────────────────────────────────────────────────── */
 .ship-icon {
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: drop-shadow(0 0 3px var(--sh-color, #00ff88));
   transform: rotate(var(--sh-heading, 0deg));
 }
-.ship-icon:hover { filter: drop-shadow(0 0 7px var(--sh-color, #00ff88)) brightness(1.3); }
+
+.ship-icon:hover {
+  filter: drop-shadow(0 0 7px var(--sh-color, #00ff88)) brightness(1.3);
+}
 
 /* ── Video hotspot icon ─────────────────────────────────────────────────── */
 @keyframes videoGlow {
-  0%, 100% { filter: drop-shadow(0 0 3px #ff6b35); }
-  50%       { filter: drop-shadow(0 0 9px #ff6b35) brightness(1.25); }
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px #ff6b35);
+  }
+
+  50% {
+    filter: drop-shadow(0 0 9px #ff6b35) brightness(1.25);
+  }
 }
+
 .video-hotspot-icon {
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: videoGlow 2.4s ease-in-out infinite;
   cursor: pointer;
   font-size: 18px;
@@ -205,12 +279,22 @@ html, body, #root {
 
 /* ── Live indicator dot ─────────────────────────────────────────────────── */
 @keyframes liveBlink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.25; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.25;
+  }
 }
+
 .live-dot {
   display: inline-block;
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: #ff2244;
   animation: liveBlink 1.4s ease-in-out infinite;
   flex-shrink: 0;
@@ -220,47 +304,84 @@ html, body, #root {
 .hud-panel {
   position: relative;
 }
+
 .hud-panel::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(0, 0, 0, 0.06) 3px,
-    rgba(0, 0, 0, 0.06) 4px
-  );
+  background: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 0, 0, 0.06) 3px,
+      rgba(0, 0, 0, 0.06) 4px);
   pointer-events: none;
   z-index: 0;
   border-radius: inherit;
 }
-.hud-panel > * { position: relative; z-index: 1; }
+
+.hud-panel>* {
+  position: relative;
+  z-index: 1;
+}
 
 /* ── Corner bracket decoration ─────────────────────────────────────────── */
 .corner-brackets {
   position: relative;
 }
+
 .corner-brackets::before,
 .corner-brackets::after {
   content: '';
   position: absolute;
-  width: 10px; height: 10px;
+  width: 10px;
+  height: 10px;
   border-color: #00d4ff44;
   border-style: solid;
   pointer-events: none;
 }
-.corner-brackets::before { top: 2px; left: 2px;  border-width: 1px 0 0 1px; }
-.corner-brackets::after  { bottom: 2px; right: 2px; border-width: 0 1px 1px 0; }
+
+.corner-brackets::before {
+  top: 2px;
+  left: 2px;
+  border-width: 1px 0 0 1px;
+}
+
+.corner-brackets::after {
+  bottom: 2px;
+  right: 2px;
+  border-width: 0 1px 1px 0;
+}
 
 /* ── Number glitch effect ───────────────────────────────────────────────── */
 @keyframes digitGlitch {
-  0%  { opacity: 1; transform: translateX(0)   skewX(0); }
-  8%  { opacity: 0.7; transform: translateX(-2px) skewX(-4deg); clip-path: inset(30% 0 40% 0); }
-  16% { opacity: 1; transform: translateX(2px)  skewX(3deg);  clip-path: inset(0); }
-  24% { opacity: 0.85; transform: translateX(-1px) skewX(0); }
-  100%{ opacity: 1; transform: translateX(0)   skewX(0); }
+  0% {
+    opacity: 1;
+    transform: translateX(0) skewX(0);
+  }
+
+  8% {
+    opacity: 0.7;
+    transform: translateX(-2px) skewX(-4deg);
+    clip-path: inset(30% 0 40% 0);
+  }
+
+  16% {
+    opacity: 1;
+    transform: translateX(2px) skewX(3deg);
+    clip-path: inset(0);
+  }
+
+  24% {
+    opacity: 0.85;
+    transform: translateX(-1px) skewX(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) skewX(0);
+  }
 }
+
 .glitch-number {
   display: inline-block;
   animation: digitGlitch 0.35s ease forwards;
@@ -272,6 +393,7 @@ html, body, #root {
   display: block;
   border-radius: 2px;
 }
+
 /* hide Leaflet popup's default white border when containing video */
 .video-popup .leaflet-popup-content-wrapper {
   padding: 0 !important;

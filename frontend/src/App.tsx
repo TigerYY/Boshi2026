@@ -38,6 +38,17 @@ export default function App() {
         currentDate: new Date(range.end), // Default to live view
       }));
     }).catch(err => console.error('Failed to fetch timeline range:', err));
+
+    // 每 5 分钟更新 endDate，确保新事件进入时间轴范围
+    const endDateTimer = setInterval(() => {
+      store.setTimeline(prev => ({
+        ...prev,
+        endDate: new Date(),
+        // 如果当前位于末尾，也跟随更新 currentDate
+        ...(prev.currentDate >= prev.endDate ? { currentDate: new Date() } : {}),
+      }));
+    }, 5 * 60 * 1000);
+    return () => clearInterval(endDateTimer);
   }, []);
 
   // WebSocket
