@@ -82,7 +82,13 @@ export function useAppStore() {
     selectedEvent, setSelectedEvent,
     selectedNews, setSelectedNews,
     activePanel, setActivePanel,
-    timeline, setTimeline,
+    timeline, setTimeline: (update: Partial<TimelineState> | ((prev: TimelineState) => TimelineState)) => {
+      if (typeof update === 'function') {
+        setTimeline(prev => update(prev));
+      } else {
+        setTimeline(prev => ({ ...prev, ...update }));
+      }
+    },
     notifications,
   };
 }

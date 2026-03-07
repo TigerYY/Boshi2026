@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore, pushNotification } from './store/useAppStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { fetchOllamaHealth, fetchLatestReport } from './api/client';
+import { fetchOllamaHealth, fetchLatestReport, fetchTimelineRange } from './api/client';
 import type { WsMessage, AnalysisReport } from './api/types';
 
 import Header from './components/UI/Header';
@@ -24,10 +24,20 @@ export default function App() {
   const [headerRefreshKey, setHeaderRefreshKey] = useState(0);
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Check Ollama health + initial report fetch
+  // Check Ollama health + initial report fetch + dynamic timeline range
   useEffect(() => {
     fetchOllamaHealth().then(r => setOllamaOk(r.status === 'ok')).catch(() => setOllamaOk(false));
     fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => { });
+
+    // Phase 4: Dynamic timeline range initialization
+    fetchTimelineRange().then(range => {
+      store.setTimeline(prev => ({
+        ...prev,
+        startDate: new Date(range.start),
+        endDate: new Date(range.end),
+        currentDate: new Date(range.end), // Default to live view
+      }));
+    }).catch(err => console.error('Failed to fetch timeline range:', err));
   }, []);
 
   // WebSocket

@@ -22,6 +22,9 @@ export const fetchEvents = (params?: {
   until?: string; confirmed_only?: boolean; min_severity?: number;
 }) => http.get<MilitaryEvent[]>('/api/events', { params }).then(r => r.data);
 
+export const fetchTimelineRange = () =>
+  http.get<{ start: string; end: string; first_event: string }>('/api/events/range').then(r => r.data);
+
 export const fetchEventsGeoJson = (params?: { since?: string; until?: string }) =>
   http.get<GeoJsonFeatureCollection>('/api/events/geojson', { params }).then(r => r.data);
 

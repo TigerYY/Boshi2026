@@ -88,6 +88,17 @@ html, body, #root {
   color: #00d4ff;
 }
 
+/* Timeline track area */
+.timeline-track {
+  position: relative;
+  min-height: 44px;
+  height: 48px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
 .mil-badge {
   display: inline-flex;
   align-items: center;

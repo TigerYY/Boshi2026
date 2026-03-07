@@ -1,12 +1,77 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from models import get_db, MilitaryEvent, MilitaryUnit, ControlZone
 from ._utils import iso_utc
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+
+@router.get("/range")
+async def get_timeline_range(db: AsyncSession = Depends(get_db)):
+    """Suggest a timeline range based on the start of activity surge."""
+    cutoff = datetime(2025, 1, 1)
+    
+    # Heuristic: Find the first day with > 5 events since 2025
+    # Use raw SQL for group by and count which is cleaner here
+    from sqlalchemy import text
+    query = text("""
+        SELECT date(occurred_at) as d 
+        FROM events 
+        WHERE occurred_at >= :cutoff 
+        GROUP BY d 
+        HAVING count(*) >= 5 
+        ORDER BY d LIMIT 1
+    """)
+    result = await db.execute(query, {"cutoff": cutoff})
+    first_surge_date = result.scalar()
+    
+    if first_surge_date:
+        first_event_at = datetime.strptime(first_surge_date, "%Y-%m-%d")
+    else:
+        # Fallback to first significant event
+        result = await db.execute(
+            select(func.min(MilitaryEvent.occurred_at))
+            .where(and_(MilitaryEvent.severity >= 3, MilitaryEvent.occurred_at >= cutoff))
+        )
+        first_event_at = result.scalar()
+
+    # Default fallback: 30 days ago
+    if not first_event_at:
+        first_event_at = datetime.now() - timedelta(days=30)
+    
+    # Pad by 2 days
+    import datetime as dt
+    if isinstance(first_event_at, str):
+        from dateutil.parser import parse
+        first_event_at = parse(first_event_at)
+        
+    start_suggested = first_event_at - dt.timedelta(days=2)
+    return {
+        "start": iso_utc(start_suggested),
+        "end": iso_utc(datetime.now()),
+        "first_event": iso_utc(first_event_at)
+    }
+
+    # Default fallback: 30 days ago if DB is empty
+    if not first_event_at:
+        first_event_at = datetime.now() - timedelta(days=30)
+    
+    # Pad by 2 days before the first event for context
+    import datetime as dt
+    if isinstance(first_event_at, str):
+        # Handle string if SQLite returns it that way (unlikely with SQLAlchemy but for safety)
+        from dateutil.parser import parse
+        first_event_at = parse(first_event_at)
+        
+    start_suggested = first_event_at - dt.timedelta(days=2)
+    return {
+        "start": iso_utc(start_suggested),
+        "end": iso_utc(datetime.now()),
+        "first_event": iso_utc(first_event_at) if first_event_at else None
+    }
 
 
 @router.get("")
