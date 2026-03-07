@@ -42,5 +42,10 @@ Thumbs.db
 *.log
 logs/
 
+# 本地启动/停止脚本的运行时文件（start.sh 写入，stop.sh 读取）
+.backend.pid
+.frontend.pid
+.ports
+
 # Data
 data/

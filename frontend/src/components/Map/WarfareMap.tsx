@@ -316,11 +316,47 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       zoomControl: true,
       closePopupOnClick: true,
     });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+
+    const baseLayerDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd',
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
       maxZoom: 19,
-    }).addTo(map);
+    });
+    const eoxBase = 'https://{s}.tiles.maps.eox.at/wmts/1.0.0';
+    const eoxOpts = { subdomains: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], maxZoom: 14 };
+    const baseLayerSatellite = L.tileLayer(
+      `${eoxBase}/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg`,
+      { ...eoxOpts, attribution: '© <a href="https://s2maps.eu">Sentinel-2 cloudless</a> by <a href="https://eox.at">EOX</a> (Contains modified Copernicus Sentinel data)' }
+    );
+    const baseLayersEoxByYear: Record<string, L.TileLayer> = {};
+    const eoxYears: { id: string; label: string; year: string }[] = [
+      { id: 's2cloudless-2024', label: '卫星(2024)', year: '2024' },
+      { id: 's2cloudless-2023_3857', label: '卫星(2023)', year: '2023' },
+      { id: 's2cloudless-2021_3857', label: '卫星(2021)', year: '2021' },
+      { id: 's2cloudless-2019_3857', label: '卫星(2019)', year: '2019' },
+      { id: 's2cloudless-2017_3857', label: '卫星(2017)', year: '2017' },
+    ];
+    for (const { id, label, year } of eoxYears) {
+      baseLayersEoxByYear[label] = L.tileLayer(
+        `${eoxBase}/${id}/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg`,
+        { ...eoxOpts, attribution: `© <a href="https://s2maps.eu">Sentinel-2 cloudless</a> by <a href="https://eox.at">EOX</a> (Contains modified Copernicus Sentinel data ${year})` }
+      );
+    }
+    baseLayerDark.addTo(map);
+    const baseLayers: Record<string, L.TileLayer> = {
+      '暗色': baseLayerDark,
+      '卫星': baseLayerSatellite,
+      ...baseLayersEoxByYear,
+    };
+    const gibsTime = '2024-06-01';
+    const gibsLayer = L.tileLayer(
+      `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${gibsTime}/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpg`,
+      {
+        maxZoom: 8,
+        attribution: '© <a href="https://earthdata.nasa.gov">NASA EOSDIS GIBS</a>',
+      }
+    );
+    L.control.layers(baseLayers, { 'NASA MODIS 真彩色': gibsLayer }, { position: 'topleft' }).addTo(map);
 
     layersRef.current = {
       us_units: L.layerGroup().addTo(map),

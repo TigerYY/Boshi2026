@@ -463,7 +463,7 @@
             <div style="font-size:10px;color:#475569;margin-bottom:6px;">后端处理</div>
             <div class="flex flex-col gap-1">
               <div class="arch-node hl">FastAPI :8100</div>
-              <div class="arch-node ai">deepseek-r1:1.5b</div>
+              <div class="arch-node ai">qwen2.5:3b</div>
               <div class="arch-node ai">qwen3-vl:8b</div>
               <div class="arch-node hl">SQLite + APScheduler</div>
             </div>
@@ -535,9 +535,9 @@
             </tr>
             <tr>
               <td><span class="tag tag-green">AI</span></td>
-              <td>deepseek-r1:1.5b / qwen2.5:3b</td>
-              <td>1.1 GB ~ 1.9GB</td>
-              <td>新闻摘要分类、地理提取（支持双模型池）</td>
+              <td>qwen2.5:3b</td>
+              <td>1.9 GB</td>
+              <td>新闻摘要分类、地理提取、实体抽取</td>
             </tr>
             <tr>
               <td><span class="tag tag-green">AI</span></td>
@@ -571,15 +571,15 @@
             </tr>
             <tr>
               <td><span class="tag tag-purple">数据</span></td>
-              <td>CartoDB DarkMatter</td>
+              <td>CartoDB Dark + EOX Sentinel-2</td>
               <td>—</td>
-              <td>原生深色军事风格底图</td>
+              <td>双底图：暗色 / 卫星无云，Leaflet 图层控制切换</td>
             </tr>
             <tr>
               <td><span class="tag tag-purple">数据</span></td>
-              <td>OpenSky Network</td>
-              <td>API v2</td>
-              <td>中东区域实时 ADS-B 航班追踪</td>
+              <td>api.adsb.lol / OpenSky</td>
+              <td>REST API</td>
+              <td>中东区域实时 ADS-B 航班追踪（主用 adsb.lol 防限流）</td>
             </tr>
             <tr>
               <td><span class="tag tag-purple">数据</span></td>
@@ -628,15 +628,16 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
             <span style="font-size:22px;">🗺</span>
             <div>
               <div style="font-size:14px;font-weight:600;color:#38bdf8;">GIS 战场地图</div>
-              <div style="font-size:10px;color:#475569;">CartoDB DarkMatter · Leaflet</div>
+              <div style="font-size:10px;color:#475569;">CartoDB 暗色 / EOX 卫星 · Leaflet</div>
             </div>
           </div>
           <ul
             style="font-size:12px;color:#94a3b8;list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;">
+            <li>✦ <strong style="color:#cbd5e1;">底图切换</strong>：暗色（CartoDB）/ 卫星（EOX Sentinel-2 无云），左上角图层控制切换</li>
             <li>✦ <strong style="color:#cbd5e1;">9 个图层组</strong>：美军单位、伊朗单位、代理武装、军事事件、控制区域、热点、实时航班、舰船动态、视频热点</li>
             <li>✦ <strong style="color:#cbd5e1;">自定义图标</strong>：SVG 矢量图标，按兵种/阵营区分颜色</li>
             <li>✦ <strong style="color:#cbd5e1;">动态热点圆圈</strong>：脉冲雷达动画，大小按危险评分缩放</li>
-            <li>✦ <strong style="color:#cbd5e1;">实时航班追踪</strong>：OpenSky Network ADS-B，60s 轮询</li>
+            <li>✦ <strong style="color:#cbd5e1;">实时航班追踪</strong>：api.adsb.lol（主）/ OpenSky（备）ADS-B，缓存 300s</li>
             <li>✦ <strong style="color:#cbd5e1;">视频热点</strong>：8 处战略要地内嵌 YouTube OSINT 频道最新视频</li>
             <li>✦ <strong style="color:#cbd5e1;">冲突烈度叠加层</strong>：左下角 sparkline + 0-10 分实时显示</li>
             <li>✦ <strong style="color:#cbd5e1;">图层控制面板</strong>：右上角 pill 切换，独立开/关每个图层</li>
@@ -793,8 +794,8 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
               <td>实时航班</td>
               <td>▲</td>
               <td><span style="color:#00d4ff;">■</span> 青/橙</td>
-              <td>OpenSky Network ADS-B</td>
-              <td>同步主配置</td>
+              <td>api.adsb.lol（主）/ OpenSky（备）</td>
+              <td>300s 缓存</td>
             </tr>
             <tr>
               <td>舰船动态</td>
@@ -1021,15 +1022,14 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
       <!-- Model comparison -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div class="glass bracket p-5">
-          <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;">⚡ deepseek-r1:1.5b — 快速处理</div>
+          <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;">⚡ qwen2.5:3b — 快速处理</div>
           <ul style="font-size:12px;color:#94a3b8;display:flex;flex-direction:column;gap:6px;">
-            <li>📌 用途：新闻摘要翻译、分类、地理坐标提取</li>
-            <li>⏱ 响应：约 3 秒/条</li>
-            <li>📦 模型大小：1.1 GB</li>
-            <li>🔑 特性：CoT 在 <code class="code-inline">&lt;think&gt;</code> 标签内，<code class="code-inline">content</code>
-              字段包含实际 JSON 输出</li>
+            <li>📌 用途：新闻摘要翻译、分类、地理坐标与实体提取</li>
+            <li>⏱ 响应：约 3–5 秒/条</li>
+            <li>📦 模型大小：1.9 GB</li>
+            <li>🔑 特性：JSON 结构化输出，置信度分级</li>
             <li>📊 token 预算：700</li>
-            <li>🌐 中文能力：直接输出中文摘要，置信度分级</li>
+            <li>🌐 中文能力：直接输出中文摘要，减少幻觉</li>
           </ul>
         </div>
         <div class="glass bracket p-5">
@@ -1054,7 +1054,7 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
         <div class="flex flex-wrap gap-2 items-center" style="font-size:11px;">
           <div class="arch-node hl">原文 title + content</div>
           <span style="color:#334155;">→</span>
-          <div class="arch-node ai">summarize_and_classify()<br>deepseek-r1:1.5b</div>
+          <div class="arch-node ai">summarize_and_classify()<br>qwen2.5:3b</div>
           <span style="color:#334155;">→</span>
           <div class="arch-node hl">summary_zh<br>category<br>locations</div>
           <span style="color:#334155;">→</span>
@@ -1260,8 +1260,8 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
             </tr>
             <tr>
               <td><span class="tag tag-green">实时</span></td>
-              <td>OpenSky Network</td>
-              <td class="code-inline">opensky</td>
+              <td>api.adsb.lol / OpenSky</td>
+              <td class="code-inline">adsb_lol / opensky</td>
               <td>REST API</td>
               <td>—</td>
             </tr>
@@ -1422,10 +1422,10 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
                 <td class="code-inline">/api/control/sources</td>
                 <td>所有爬虫来源状态</td>
               </tr>
-              <tr>
-                <td><span class="tag tag-green">GET</span></td>
+            <tr>
+              <td><span class="tag tag-green">GET</span></td>
                 <td class="code-inline">/api/flights/live</td>
-                <td>中东区域实时航班（OpenSky）</td>
+                <td>中东区域实时航班（api.adsb.lol / OpenSky）</td>
               </tr>
               <tr>
                 <td><span class="tag tag-green">GET</span></td>
@@ -1495,7 +1495,7 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
     <section id="sec-roadmap" class="tab-content space-y-6">
       <div>
         <div class="sec-title">升级路线图</div>
-        <p class="sec-sub">基于当前 v1.x 实现，规划三个演进阶段，从数据源扩充到 AI 深度推演，最终实现真正的"多维战场全息沙盘"。</p>
+        <p class="sec-sub">基于当前 v1.x 实现，规划四个演进阶段，从数据源扩充到 AI 深度推演，最终实现真正的"多维战场全息沙盘"。<strong style="color:#38bdf8;"> 本页已按最新进度更新</strong>（多年度 EOX 底图、NASA GIBS 专题层、卫星对比弹窗、实时航班 api.adsb.lol、AI 模型 qwen2.5:3b 等）。</p>
       </div>
 
       <!-- Phase legend -->
@@ -1574,7 +1574,7 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
           </div>
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 实时航班追踪</div>
-            <p style="font-size:11px;color:#64748b;">OpenSky Network ADS-B，中东区域实时航班叠加，60s 轮询</p>
+            <p style="font-size:11px;color:#64748b;">api.adsb.lol（主）/ OpenSky（备）ADS-B，中东区域实时航班，300s 缓存，失败时演示机 fallback</p>
           </div>
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 视频热点弹窗</div>
@@ -1596,6 +1596,22 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ 时区对齐与分析脉络</div>
             <p style="font-size:11px;color:#64748b;">修复 8 小时容差级数据偏移，向核心模型动态注入时间戳线索，赋能 AI 深度解析事件因果律</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 卫星影像底图（Phase 1）</div>
+            <p style="font-size:11px;color:#64748b;">免费 EOX Sentinel-2 无云底图已集成，地图左上角可切换「暗色 / 卫星」，含正确署名</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 多年度 EOX 图层</div>
+            <p style="font-size:11px;color:#64748b;">底图可选 2017/2019/2021/2023/2024 年 Sentinel-2 无云影像，图层控制一键切换</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ NASA GIBS 专题层</div>
+            <p style="font-size:11px;color:#64748b;">MODIS 真彩色叠加层（250m），可选开关，免费 WMTS 无 key</p>
+          </div>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 关键目标前后对比</div>
+            <p style="font-size:11px;color:#64748b;">Header「卫星对比」弹窗：纳坦兹/班达尔阿巴斯 2019 vs 2024 左右分屏，视口联动</p>
           </div>
           <div class="glass p-4 roadmap-active">
             <div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px;">✅ GIS 交互精度调优</div>
@@ -1679,9 +1695,9 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
             <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">🗣 情报自然语言查询</div>
             <p style="font-size:11px;color:#64748b;">"最近 3 天伊朗导弹袭击了哪里？" 直接用中文查询数据库，AI 返回结构化结果</p>
           </div>
-          <div class="glass p-4 roadmap-plan">
-            <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📡 卫星图像集成</div>
-            <p style="font-size:11px;color:#64748b;">Planet Labs API 或 Sentinel-2 开源卫星图，对关键目标（纳坦兹、班达尔阿巴斯）做前后对比分析</p>
+          <div class="glass p-4 roadmap-done">
+            <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px;">✅ 卫星图像深化（已完成）</div>
+            <p style="font-size:11px;color:#64748b;">多年度 EOX、NASA GIBS 专题层、纳坦兹/班达尔阿巴斯前后对比弹窗均已上线；可按需扩展多年度切换或 GIBS 时间选择器</p>
           </div>
           <div class="glass p-4 roadmap-plan">
             <div style="font-size:12px;font-weight:600;color:#c084fc;margin-bottom:6px;">📧 多渠道告警推送</div>
@@ -1779,7 +1795,7 @@ cd BoShi2025 && chmod +x start.sh && ./start.sh
       data: {
         labels: ['响应时间(s)', '模型大小(GB)', '中文准确率(%)', 'Token 预算(×100)'],
         datasets: [
-          { label: 'deepseek-r1:1.5b', data: [3, 1.1, 90, 7], backgroundColor: 'rgba(34,197,94,0.4)', borderColor: '#22c55e', borderWidth: 1 },
+          { label: 'qwen2.5:3b', data: [4, 1.9, 92, 7], backgroundColor: 'rgba(34,197,94,0.4)', borderColor: '#22c55e', borderWidth: 1 },
           { label: 'qwen3-vl:8b', data: [90, 6.1, 95, 82], backgroundColor: 'rgba(14,165,233,0.4)', borderColor: '#0ea5e9', borderWidth: 1 },
         ]
       },

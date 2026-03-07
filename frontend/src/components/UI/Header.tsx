@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { fetchSources } from '../../api/client';
 import Modal from './Modal';
 import OsintTerminal from '../Analysis/OsintTerminal';
+import SatelliteCompareModal from '../Map/SatelliteCompareModal';
 
 interface Props {
   ollamaOk: boolean;
@@ -33,6 +34,7 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
   const [time, setTime] = useState(new Date());
   const [lastSuccess, setLastSuccess] = useState<string | null>(null);
   const [showOsint, setShowOsint] = useState(false);
+  const [showSatelliteCompare, setShowSatelliteCompare] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -127,6 +129,21 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
       )}
 
       <div style={{ flex: 1 }} />
+
+      {/* Satellite compare */}
+      <button
+        onClick={() => setShowSatelliteCompare(true)}
+        title="关键目标卫星影像前后对比"
+        style={{
+          padding: '4px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 2,
+          background: 'transparent', border: '1px solid #1e2d40', color: '#556677', fontFamily: 'inherit',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#00d4ff'; (e.currentTarget as HTMLElement).style.color = '#00d4ff'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#1e2d40'; (e.currentTarget as HTMLElement).style.color = '#556677'; }}
+      >
+        📡 卫星对比
+      </button>
+      <SatelliteCompareModal isOpen={showSatelliteCompare} onClose={() => setShowSatelliteCompare(false)} />
 
       {/* Upgrade plan link */}
       <a href="/system-guide.html" target="_blank" rel="noreferrer"

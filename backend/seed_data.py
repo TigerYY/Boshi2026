@@ -223,7 +223,60 @@ async def seed():
                 side="proxy", confirmed=True, severity=3,
             ),
         ]
+        # 固定日期事件：2025-02-23～02-28，填补时间轴空档（演示用虚构数据）
+        events_feb = [
+            MilitaryEvent(
+                event_type="airstrike",
+                title="美军空袭叙利亚东部伊朗革命卫队据点",
+                description="美国中央司令部确认对叙利亚东部代尔祖尔省伊朗革命卫队及代理武装的武器仓库实施精确空袭。",
+                lat=35.3, lon=40.1, location_name="叙利亚东部代尔祖尔省",
+                occurred_at=datetime(2025, 2, 23, 8, 0, 0, tzinfo=timezone.utc),
+                side="US", confirmed=True, severity=4,
+            ),
+            MilitaryEvent(
+                event_type="naval",
+                title="红海商船遭无人机袭击，美军拦截多架无人机",
+                description="胡塞武装向红海航道发射多架自杀式无人机，美军驱逐舰与联军舰艇实施拦截，一艘商船轻微受损。",
+                lat=14.2, lon=42.6, location_name="红海南部",
+                occurred_at=datetime(2025, 2, 24, 14, 0, 0, tzinfo=timezone.utc),
+                side="proxy", confirmed=True, severity=4,
+            ),
+            MilitaryEvent(
+                event_type="missile",
+                title="伊朗向伊拉克库区发射弹道导弹",
+                description="伊朗革命卫队宣称对伊拉克库尔德自治区埃尔比勒的\"恐怖分子据点\"发射多枚弹道导弹，伊拉克与美方谴责。",
+                lat=36.2, lon=44.0, location_name="伊拉克埃尔比勒",
+                occurred_at=datetime(2025, 2, 25, 3, 30, 0, tzinfo=timezone.utc),
+                side="Iran", confirmed=True, severity=4,
+            ),
+            MilitaryEvent(
+                event_type="naval",
+                title="伊朗快艇在霍尔木兹海峡逼近美军舰艇",
+                description="伊朗伊斯兰革命卫队海军多艘快艇在霍尔木兹海峡近距离逼近美军巡逻舰，美军鸣笛示警并保持戒备。",
+                lat=26.4, lon=56.2, location_name="霍尔木兹海峡",
+                occurred_at=datetime(2025, 2, 26, 10, 0, 0, tzinfo=timezone.utc),
+                side="Iran", confirmed=True, severity=3,
+            ),
+            MilitaryEvent(
+                event_type="diplomacy",
+                title="美伊通过阿曼就红海停火进行间接磋商",
+                description="据报美国与伊朗代表通过阿曼斡旋在马斯喀特进行间接接触，讨论红海与地区局势降温，双方未予官方证实。",
+                lat=23.6, lon=58.5, location_name="阿曼马斯喀特",
+                occurred_at=datetime(2025, 2, 27, 16, 0, 0, tzinfo=timezone.utc),
+                side="neutral", confirmed=False, severity=2,
+            ),
+            MilitaryEvent(
+                event_type="airstrike",
+                title="以色列空军打击黎巴嫩真主党火箭阵地",
+                description="以色列国防军对黎巴嫩南部真主党火箭发射阵地和武器库实施空袭，回应此前对以北部的火箭弹袭击。",
+                lat=33.2, lon=35.3, location_name="黎巴嫩南部",
+                occurred_at=datetime(2025, 2, 28, 6, 0, 0, tzinfo=timezone.utc),
+                side="US", confirmed=True, severity=4,
+            ),
+        ]
         for e in events:
+            db.add(e)
+        for e in events_feb:
             db.add(e)
 
         # ── Seed Scraper Status ─────────────────────────────────────────────
@@ -309,11 +362,17 @@ async def seed():
                 processed=True,
             ),
         ]
+        # 仅插入 URL 不存在的新闻，避免重复运行 seed 时 UNIQUE 冲突
+        from sqlalchemy import select
+        existing = await db.execute(select(NewsItem.url))
+        existing_urls = {r for r, in existing.fetchall()}
+        added_news = 0
         for n in seed_news:
-            db.add(n)
-
+            if n.url not in existing_urls:
+                db.add(n)
+                added_news += 1
         await db.commit()
-        print("✅ Seed data loaded successfully.")
+        print("✅ Seed data loaded successfully." + (f" (本次新增 {added_news} 条新闻)" if added_news else " (新闻已存在，未重复插入)"))
 
 
 if __name__ == "__main__":
