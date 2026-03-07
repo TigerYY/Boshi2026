@@ -128,6 +128,8 @@ async def trigger_analysis(
                 market_correlation=result.get("market_correlation", ""),
                 abu_dhabi_risk=result.get("abu_dhabi_risk", 10.0),
                 abu_dhabi_status=result.get("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。"),
+                forecast_data=result.get("forecast_data", {}),
+                thinking_process=result.get("thinking_process", ""),
             )
             session.add(report)
             await session.commit()
@@ -241,4 +243,6 @@ def _serialize(r: AnalysisReport) -> dict:
         "market_correlation": r.market_correlation,
         "abu_dhabi_risk": r.abu_dhabi_risk,
         "abu_dhabi_status": r.abu_dhabi_status,
+        "forecast_data": r.forecast_data or {},
+        "thinking_process": r.thinking_process or "",
     }

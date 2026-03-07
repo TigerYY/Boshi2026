@@ -181,6 +181,20 @@ export default function NewsPanel({ onNewsSelect }: Props) {
                   </div>
                 )}
 
+                {report.thinking_process && (
+                  <div>
+                    <SectionLabel>AI 思考链路</SectionLabel>
+                    <div style={{
+                      fontSize: 10, color: '#667788', lineHeight: 1.6,
+                      padding: '8px 12px', background: 'rgba(0, 212, 255, 0.03)',
+                      border: '1px dashed #1e2d40', borderRadius: 4,
+                      maxHeight: '150px', overflowY: 'auto', whiteSpace: 'pre-wrap'
+                    }}>
+                      {report.thinking_process}
+                    </div>
+                  </div>
+                )}
+
                 {report.generated_at && (
                   <div style={{ fontSize: 9, color: '#334455' }}>
                     生成于 {new Date(report.generated_at).toLocaleString('zh-CN')}
@@ -342,7 +356,12 @@ function NewsCard({ item, onSelect }: { item: NewsItem; onSelect?: (n: NewsItem)
           </span>
         )}
         {item.confidence && (
-          <span style={{ color: '#334455', fontSize: 9, marginLeft: 'auto' }}>
+          <span style={{
+            color: item.confidence >= 0.9 ? '#00d4ff' : item.confidence >= 0.7 ? '#ffdd00' : '#ff2244',
+            fontSize: 9, marginLeft: 'auto',
+            background: (item.confidence >= 0.9 ? '#00d4ff' : item.confidence >= 0.7 ? '#ffdd00' : '#ff2244') + '11',
+            padding: '0 4px', borderRadius: 2, border: `1px solid ${(item.confidence >= 0.9 ? '#00d4ff' : item.confidence >= 0.7 ? '#ffdd00' : '#ff2244')}33`
+          }}>
             可信 {Math.round(item.confidence * 100)}%
           </span>
         )}

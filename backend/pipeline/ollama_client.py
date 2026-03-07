@@ -37,8 +37,8 @@ _analysis_semaphore = asyncio.Semaphore(1)
 
 
 def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-               num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
-    """Blocking chat call — runs in a thread executor."""
+               num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> dict:
+    """Blocking chat call — returns a dict with 'content' and 'thinking'."""
     payload = {
         "model": model,
         "messages": messages,
@@ -57,21 +57,16 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
     )
     resp.raise_for_status()
     data = resp.json()
-    content: str = data["message"].get("content", "") or ""
+    msg = data.get("message", {})
+    content: str = msg.get("content", "") or ""
+    thinking: str = msg.get("thinking", "") or ""
 
-    # qwen3-vl: if content is empty but 'thinking' field has content, use it
-    if not content:
-        thinking: str = data["message"].get("thinking", "") or ""
-        if thinking:
-            logger.debug("content empty, falling back to 'thinking' field")
-            content = thinking.strip()
-
-    return content
+    return {"content": content, "thinking": thinking}
 
 
 async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-                num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> str:
-    """Async wrapper: serialises through respective semaphore, runs in thread pool."""
+                 num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> dict:
+    """Async wrapper: returns dict {"content": str, "thinking": str}."""
     sem = _fast_semaphore if model == FAST_MODEL else _analysis_semaphore
     async with sem:
         return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model)
@@ -174,14 +169,15 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         "3. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
         "4. 只输出JSON，不要解释，不要markdown代码块"
     )
-    raw = ""
+    res = {"content": "", "thinking": ""}
     try:
-        raw = await _chat(
+        res = await _chat(
             [{"role": "user", "content": prompt}],
             temperature=0.1,   # lower temperature = less hallucination
             num_predict=600,
             model=FAST_MODEL,
         )
+        raw = res["content"] or res["thinking"]
         result = _parse_json_from_response(raw)
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
@@ -207,7 +203,7 @@ async def summarize_and_classify(title: str, content: str) -> dict:
 
         return result
     except Exception as e:
-        logger.error(f"summarize_and_classify error: {e} | raw={raw[:200]}")
+        logger.error(f"summarize_and_classify error: {e} | raw={res['content'][:200]}")
         return {
             "summary_zh": title,
             "category": "other",
@@ -238,7 +234,8 @@ async def analyze_image(image_url: str) -> str:
                 ],
             }
         ]
-        return await _chat(messages, temperature=0.2, num_predict=256)
+        res = await _chat(messages, temperature=0.2, num_predict=256)
+        return (res["content"] or res["thinking"]).strip()
     except Exception as e:
         logger.warning(f"analyze_image failed for {image_url}: {e}")
         return ""
@@ -372,13 +369,16 @@ async def generate_daily_summary(
         '"escalation_probability":<未来48小时战争爆发升温概率百分比0到100的浮点数>,'
         '"market_correlation":"<50字描述地缘政治与当前比特币等金融避险资产走势的关联分析判断>",'
         '"abu_dhabi_risk":<阿联酋/阿布扎比地区受波及的安全风险指数，0-100的浮点数>,'
-        '"abu_dhabi_status":"<一句话用中文评价阿联酋与阿布扎比本土当前的安全状态及防空受袭威胁>"}\n\n'
+        '"abu_dhabi_status":"<一句话用中文评价阿联酋与阿布扎比本土当前的安全状态及防空受袭威胁>",'
+        '"forecast_data":{"24h": <未来24h冲突升级概率0-100>, "48h": <未来48h概率>, "72h": <未来72h概率>}}\n\n'
         "重要提示：hotspots中lat/lon必须填写真实的中东地区地理坐标（纬度10-45，经度32-75），不能使用0.0。"
     )
-    raw = ""
+    res = {"content": "", "thinking": ""}
     try:
         # Daily summary JSON needs more room: 400-word summary + hotspots
-        raw = await _chat([{"role": "user", "content": prompt}], timeout=480, num_predict=8192)
+        res = await _chat([{"role": "user", "content": prompt}], timeout=480, num_predict=8192)
+        logger.info("Daily summary raw content length: %d, thinking length: %d", len(res["content"]), len(res["thinking"]))
+        raw = res["content"] or res["thinking"]
         result = _parse_json_from_response(raw)
         result.setdefault("summary", "")
         result.setdefault("intensity_score", 5.0)
@@ -389,12 +389,15 @@ async def generate_daily_summary(
         result.setdefault("market_correlation", "目前地缘波动未对面盘金融产生显著溢出。")
         result.setdefault("abu_dhabi_risk", 10.0)
         result.setdefault("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。")
+        result.setdefault("forecast_data", {"24h": 50.0, "48h": 50.0, "72h": 50.0})
+        
+        result["thinking_process"] = res["thinking"]
         result["intensity_score"] = max(0.0, min(10.0, float(result["intensity_score"])))
         # Fix any 0,0 or out-of-region coordinates from the AI
         result["hotspots"] = [_fix_hotspot_coords(h) for h in result["hotspots"]]
         return result
     except Exception as e:
-        logger.error(f"generate_daily_summary error: {e} | raw={raw[:300]}")
+        logger.error(f"generate_daily_summary error: {e} | raw={res['content'][:300]}")
         return {
             "summary": "分析生成失败，请稍后重试。",
             "intensity_score": 5.0,
@@ -403,6 +406,8 @@ async def generate_daily_summary(
             "outlook": "",
             "escalation_probability": 0.0,
             "market_correlation": "",
+            "forecast_data": {"24h": 0.0, "48h": 0.0, "72h": 0.0},
+            "thinking_process": str(e)
         }
 
 
@@ -434,10 +439,11 @@ async def ask_osint_question(question: str, context: str) -> str:
     try:
         # For OSINT queries, we want deep analysis.
         logger.info(f"Dispatching OSINT query: {question[:30]}...")
-        reply = await _chat(messages, temperature=0.2, num_predict=1536)
+        res = await _chat(messages, temperature=0.2, num_predict=1536)
+        reply = (res["content"] or res["thinking"]).strip()
         if not reply:
             return "分析引擎因线路不通畅暂未返回实质性判度，请稍后再次轮询。"
-        return reply.strip()
+        return reply
     except Exception as e:
         logger.error(f"ask_osint_question OSINT Query Error: {e}")
         return "本地情报推理模块暂时阻断连接，无法合成推演简报。"

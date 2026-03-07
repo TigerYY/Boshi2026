@@ -82,11 +82,54 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
 
                     <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '11px', color: '#ffffff', fontWeight: '600', marginBottom: '4px' }}>
-                            未来 48 小时升级概率
+                            当前冲突升级概率
                         </div>
                         <div style={{ fontSize: '10px', color: '#8b9ab0', lineHeight: 1.4 }}>
                             系统监测到该冲突存在 <span style={{ color: accentColor }}>{isHighRisk ? '极高危险' : isMediumRisk ? '扩散风险' : '有限影响'}</span>。
                         </div>
+                    </div>
+                </div>
+
+                {/* Escalation Forecast Chart (Phase 3) */}
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '10px', color: '#445566', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>72小时深度推演预测区间</span>
+                        <span style={{ color: accentColor, opacity: 0.8 }}>AI 推演引擎 v3</span>
+                    </div>
+                    <div style={{ height: '60px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', padding: '8px 4px 0 4px', border: '1px solid #1e2d40' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={[
+                                { time: 'NOW', prob: prob },
+                                { time: '+24H', prob: report?.forecast_data?.['24h'] || prob },
+                                { time: '+48H', prob: report?.forecast_data?.['48h'] || prob },
+                                { time: '+72H', prob: report?.forecast_data?.['72h'] || prob },
+                            ]}>
+                                <defs>
+                                    <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={accentColor} stopOpacity={0.4} />
+                                        <stop offset="95%" stopColor={accentColor} stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <Tooltip
+                                    contentStyle={{ background: '#0a0e14', border: '1px solid #30363d', fontSize: '10px', padding: '4px' }}
+                                    itemStyle={{ color: accentColor }}
+                                    labelStyle={{ color: '#8b9ab0', marginBottom: '2px' }}
+                                />
+                                <Area
+                                    type="monotone" dataKey="prob"
+                                    stroke={accentColor}
+                                    fill="url(#forecastGrad)" strokeWidth={2}
+                                    dot={{ r: 3, fill: accentColor, strokeWidth: 0 }}
+                                    activeDot={{ r: 4, stroke: '#fff', strokeWidth: 1 }}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', padding: '0 4px', fontSize: '9px', color: '#556677', fontFamily: 'monospace' }}>
+                        <span>T+0</span>
+                        <span>T+24H</span>
+                        <span>T+48H</span>
+                        <span>T+72H</span>
                     </div>
                 </div>
 

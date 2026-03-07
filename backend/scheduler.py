@@ -302,6 +302,8 @@ async def run_daily_analysis():
                     market_correlation=result.get("market_correlation", ""),
                     abu_dhabi_risk=result.get("abu_dhabi_risk", 10.0),
                     abu_dhabi_status=result.get("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。"),
+                    forecast_data=result.get("forecast_data", {}),
+                    thinking_process=result.get("thinking_process", ""),
                 )
                 db.add(report)
                 await db.commit()

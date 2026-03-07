@@ -91,6 +91,8 @@ export interface AnalysisReport {
   market_correlation: string;
   abu_dhabi_risk: number;
   abu_dhabi_status: string;
+  forecast_data: Record<string, number>;
+  thinking_process: string;
 }
 
 export interface IntensityTrend {

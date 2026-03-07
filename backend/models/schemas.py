@@ -88,6 +88,8 @@ class AnalysisReport(Base):
     outlook = Column(Text)                            # 50字未来研判
     escalation_probability = Column(Float)            # 0-100% escalating chance
     market_correlation = Column(Text)                 # AI text report on market
+    forecast_data = Column(JSON)                      # {"24h": float, "48h": float, "72h": float}
+    thinking_process = Column(Text)                   # AI's internal reasoning
 
     # Custom UAE Risk module
     abu_dhabi_risk = Column(Float, default=0.0)       # 0-100 UAE risk index
