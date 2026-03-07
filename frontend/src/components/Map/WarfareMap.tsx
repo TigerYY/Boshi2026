@@ -380,19 +380,20 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         marker.bindPopup(`<div style="font-size:12px"><div style="font-weight:700;margin-bottom:4px;color:#ff6b35">${h.name}</div><div style="font-size:10px;color:#ff6b35;margin-bottom:4px">热度指数 ${h.score.toFixed(1)} / 10</div><div style="font-size:10px;color:#8b9ab0;line-height:1.5">${h.reason}</div></div>`, { ...POPUP_OPTS });
         hotspotsLg.addLayer(marker);
       }
-      if (abuDhabiRisk !== null) {
-        const color = abuDhabiRisk > 50 ? '#ff2244' : abuDhabiRisk > 30 ? '#ffdd00' : '#00ff88';
-        const dur = abuDhabiRisk > 50 ? '1s' : '3s';
-        const adIcon = L.divIcon({
-          className: '',
-          html: `<div style="position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;"><div style="position:absolute; width:100%; height:100%; border-radius:50%; background:${color}00; border:2px solid ${color}; animation: pulse ${dur} infinite;"></div><div style="position:absolute; width:60%; height:60%; border-radius:50%; background:${color}44; border:1px solid ${color}; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 5px #000;">🇦🇪</div><div style="position:absolute; top:-25px; white-space:nowrap; background:rgba(0,0,0,0.8); border:1px solid ${color}; color:${color}; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold; pointer-events:none;">阿布扎比区域雷达 (风险 ${abuDhabiRisk.toFixed(0)})</div></div>`,
-          iconSize: [40, 40], iconAnchor: [20, 20],
-        });
-        const adMarker = L.marker([24.4539, 54.3773], { icon: adIcon, zIndexOffset: 150, interactive: false });
-        hotspotsLg.addLayer(adMarker);
-      }
     } else {
       if (mapRef.current.hasLayer(hmLayer)) mapRef.current.removeLayer(hmLayer);
+    }
+
+    if (abuDhabiRisk !== null) {
+      const color = abuDhabiRisk > 50 ? '#ff2244' : abuDhabiRisk > 30 ? '#ffdd00' : '#00ff88';
+      const dur = abuDhabiRisk > 50 ? '1s' : '3s';
+      const adIcon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;"><div style="position:absolute; width:100%; height:100%; border-radius:50%; background:${color}00; border:2px solid ${color}; animation: pulse ${dur} infinite;"></div><div style="position:absolute; width:60%; height:60%; border-radius:50%; background:${color}44; border:1px solid ${color}; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; text-shadow:0 0 5px #000;">🇦🇪</div><div style="position:absolute; top:-25px; white-space:nowrap; background:rgba(0,0,0,0.8); border:1px solid ${color}; color:${color}; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold; pointer-events:none;">阿布扎比区域雷达 (风险 ${abuDhabiRisk.toFixed(0)})</div></div>`,
+        iconSize: [40, 40], iconAnchor: [20, 20],
+      });
+      const adMarker = L.marker([24.4539, 54.3773], { icon: adIcon, zIndexOffset: 150, interactive: false });
+      hotspotsLg.addLayer(adMarker);
     }
 
     evLg.clearLayers();
