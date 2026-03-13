@@ -18,6 +18,7 @@ export default function SidePanel({ tabs, activeTab, onTabChange, children }: Pr
   return (
     <div className="hud-panel corner-brackets" style={{
       width: 300,
+      height: '100%',
       display: 'flex', flexDirection: 'column',
       borderLeft: '1px solid #1e2d40',
       background: 'rgba(10,14,20,0.96)',
@@ -54,7 +55,7 @@ export default function SidePanel({ tabs, activeTab, onTabChange, children }: Pr
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {children}
       </div>
     </div>

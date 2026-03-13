@@ -52,6 +52,9 @@ export const fetchIntensityTrend = (days = 7) =>
 export const triggerAnalysis = () =>
   http.post('/api/analysis/generate').then(r => r.data);
 
+export const fetchLatestFinance = () =>
+  http.get<Record<string, { symbol: string; price: number; change: number }>>('/api/analysis/finance').then(r => r.data);
+
 export const fetchOllamaHealth = () =>
   http.get<{ status: string; model: string }>('/api/analysis/ollama/health').then(r => r.data);
 

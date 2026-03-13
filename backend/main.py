@@ -1,5 +1,6 @@
 import logging
 import json
+import socket
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,6 +106,33 @@ async def health():
     return {"status": "ok", "service": "boshi-warfare-system"}
 
 
+def find_available_port(host: str, start_port: int, max_attempts: int = 20) -> int:
+    """
+    寻找一个可用的端口。
+    """
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+                return port
+            except socket.error:
+                continue
+    raise IOError(f"Could not find an available port in range {start_port} to {start_port + max_attempts - 1}")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8100, reload=True)
+    
+    initial_port = 8100
+    host = "0.0.0.0"
+    
+    try:
+        port = find_available_port(host, initial_port)
+        if port != initial_port:
+            logger.info(f"Port {initial_port} is busy, using port {port} instead.")
+        else:
+            logger.info(f"Starting server on port {port}")
+            
+        uvicorn.run("main:app", host=host, port=port, reload=True)
+    except Exception as e:
+        logger.error(f"Failed to start server: {e}")

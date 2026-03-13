@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore, pushNotification } from './store/useAppStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { fetchOllamaHealth, fetchLatestReport, fetchTimelineRange } from './api/client';
+import { fetchOllamaHealth, fetchLatestReport, fetchTimelineRange, fetchLatestFinance } from './api/client';
 import type { WsMessage, AnalysisReport } from './api/types';
 
 import Header from './components/UI/Header';
@@ -28,6 +28,7 @@ export default function App() {
   useEffect(() => {
     fetchOllamaHealth().then(r => setOllamaOk(r.status === 'ok')).catch(() => setOllamaOk(false));
     fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => { });
+    fetchLatestFinance().then(setFinanceData).catch(() => { });
 
     // Phase 4: Dynamic timeline range initialization
     fetchTimelineRange().then(range => {

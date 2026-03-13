@@ -60,27 +60,30 @@ async def trigger_analysis(
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         async with __import__("models", fromlist=["AsyncSessionLocal"]).AsyncSessionLocal() as session:
             
-            # Fetch latest BTC and OIL data to augment the manual generation prompt
-            from models.schemas import FinancialMetric
+            # Fetch latest BTC and OIL data
+            from models.schemas import FinancialMetric, FlightRecord, VesselRecord
             
             btc_metric = await session.scalar(
-                select(FinancialMetric)
-                .where(FinancialMetric.symbol == "BTCUSDT")
-                .order_by(FinancialMetric.fetched_at.desc())
-                .limit(1)
+                select(FinancialMetric).where(FinancialMetric.symbol == "BTCUSDT").order_by(FinancialMetric.fetched_at.desc()).limit(1)
             )
             oil_metric = await session.scalar(
-                select(FinancialMetric)
-                .where(FinancialMetric.symbol == "WTI_OIL")
-                .order_by(FinancialMetric.fetched_at.desc())
-                .limit(1)
+                select(FinancialMetric).where(FinancialMetric.symbol == "WTI_OIL").order_by(FinancialMetric.fetched_at.desc()).limit(1)
             )
             
-            financial_text = ""
+            # Fetch latest flight/vessel counts for anomaly detection
+            flight_rec = await session.scalar(select(FlightRecord).order_by(FlightRecord.timestamp.desc()).limit(1))
+            vessel_rec = await session.scalar(select(VesselRecord).order_by(VesselRecord.timestamp.desc()).limit(1))
+            
+            extra_data_text = "### 宏观避险与流量监控快照\n"
             if btc_metric:
-                financial_text += f"今日比特币(BTC/USD)避险市场数据: 当前价格 {btc_metric.price:,.2f}, 24小时涨跌幅 {btc_metric.change_24h}%\n"
+                extra_data_text += f"• 比特币(BTC/USD)避险市场: 价格 {btc_metric.price:,.2f}, 24h跌涨 {btc_metric.change_24h}%\n"
             if oil_metric:
-                financial_text += f"今日WTI原油大宗商品市场数据: 当前价格 {oil_metric.price:,.2f}, 24小时涨跌幅 {oil_metric.change_24h}%"
+                extra_data_text += f"• WTI原油大宗商品: 价格 {oil_metric.price:,.2f}, 24h跌涨 {oil_metric.change_24h}%\n"
+            
+            if flight_rec and isinstance(flight_rec.data, list):
+                extra_data_text += f"• 航空流量监控: 区域活跃飞行器约 {len(flight_rec.data)} 架次\n"
+            if vessel_rec and isinstance(vessel_rec.data, list):
+                extra_data_text += f"• 海事航运监控: 目标海域活跃舰船约 {len(vessel_rec.data)} 艘\n"
 
             news_result = await session.execute(
                 select(NewsItem)
@@ -106,7 +109,7 @@ async def trigger_analysis(
             news_text = "\n".join(f"{_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
             events_text = "\n".join(f"{_fmt_dt(e.occurred_at)} [{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
-            result = await generate_daily_summary(events_text, news_text, financial_text=financial_text)
+            result = await generate_daily_summary(events_text, news_text, financial_text=extra_data_text)
             if result is None:
                 await ws_manager.broadcast({
                     "type": "llm_status",
@@ -225,6 +228,27 @@ async def intensity_trend(
 async def ollama_health():
     ok = await health_check()
     return {"status": "ok" if ok else "unavailable", "model": "qwen3-vl:8b"}
+
+
+@router.get("/finance")
+async def get_latest_finance(db: AsyncSession = Depends(get_db)):
+    """Return the most recent BTC and OIL metrics stored in the DB."""
+    from models.schemas import FinancialMetric
+    
+    btc = await db.scalar(
+        select(FinancialMetric).where(FinancialMetric.symbol == "BTCUSDT").order_by(FinancialMetric.fetched_at.desc()).limit(1)
+    )
+    oil = await db.scalar(
+        select(FinancialMetric).where(FinancialMetric.symbol == "WTI_OIL").order_by(FinancialMetric.fetched_at.desc()).limit(1)
+    )
+    
+    res = {}
+    if btc:
+        res["BTC"] = {"symbol": "BTC", "price": round(btc.price, 2), "change": round(btc.change_24h, 2)}
+    if oil:
+        res["OIL"] = {"symbol": "OIL", "price": round(oil.price, 2), "change": round(oil.change_24h, 2)}
+        
+    return res
 
 
 def _serialize(r: AnalysisReport) -> dict:

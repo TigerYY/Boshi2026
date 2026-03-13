@@ -87,7 +87,7 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
   }, {} as Record<number, ScraperSource[]>);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
 
       {/* AI Engine Status — real-time via WebSocket */}
       <div style={{ padding: '10px', borderBottom: '1px solid #1e2d40' }}>

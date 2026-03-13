@@ -44,7 +44,30 @@ async def query_osint(
         try:
             since = datetime.now(timezone.utc) - timedelta(days=3)
 
-            # Focus on very recent news (last 30 instead of 40)
+            # --- Financial Context ---
+            from models.schemas import FinancialMetric
+            btc_metric = await db.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "BTCUSDT")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+            oil_metric = await db.scalar(
+                select(FinancialMetric)
+                .where(FinancialMetric.symbol == "WTI_OIL")
+                .order_by(FinancialMetric.fetched_at.desc())
+                .limit(1)
+            )
+
+            financial_ctx = "### 宏观金融/避险市场锚点\n"
+            if btc_metric:
+                financial_ctx += f"• 比特币(BTC/USD): 价格 {btc_metric.price:,.2f}, 24h涨跌 {btc_metric.change_24h}%\n"
+            if oil_metric:
+                financial_ctx += f"• WTI原油(WTI_OIL): 价格 {oil_metric.price:,.2f}, 24h涨跌 {oil_metric.change_24h}%"
+            if not btc_metric and not oil_metric:
+                financial_ctx += "暂无法获取当前金融避险资产实时波动数据。"
+
+            # --- News Context ---
             news_result = await db.execute(
                 select(NewsItem)
                 .where(NewsItem.processed == True, NewsItem.published_at >= since)
@@ -53,7 +76,7 @@ async def query_osint(
             )
             news_items = news_result.scalars().all()
 
-            # Focus on very recent events (last 15 instead of 20)
+            # --- Events Context ---
             events_result = await db.execute(
                 select(MilitaryEvent)
                 .where(MilitaryEvent.occurred_at >= since)
@@ -65,14 +88,15 @@ async def query_osint(
             def _fmt_dt(dt: datetime | None) -> str:
                 if not dt: return "[未知]"
                 if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
-                # Use a more compact format
                 return (dt + timedelta(hours=8)).strftime("%m-%d %H:%M")
 
             news_text = "\n".join(f"• {_fmt_dt(n.published_at)} [{n.source}] {n.title}: {n.summary_zh or ''}" for n in news_items)
             events_text = "\n".join(f"• {_fmt_dt(e.occurred_at)} [{e.event_type}] {e.title} @ {e.location_name}" for e in events)
 
             context_block = f"""
-### 待分析战场原始数据 (Raw Intel)
+{financial_ctx}
+
+### 待分析战场原始数据 (Recent Intel)
 {news_text if news_text else "暂无相关新闻记录。"}
 
 ### 确证军事动作与地理占位

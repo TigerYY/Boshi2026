@@ -36,7 +36,7 @@ export default function AnalysisPanel({ report, financeData }: AnalysisPanelProp
   }, [days]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', padding: '10px' }}>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '10px 10px 100px 10px', boxSizing: 'border-box' }}>
       {/* Section header */}
       <div style={{ fontSize: 10, color: '#445566', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
         数据分析

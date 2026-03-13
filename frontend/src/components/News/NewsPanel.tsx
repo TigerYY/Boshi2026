@@ -79,7 +79,7 @@ export default function NewsPanel({ onNewsSelect }: Props) {
   const filters = ['all', 'airstrike', 'missile', 'naval', 'land', 'diplomacy', 'sanction'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '1px solid #1e2d40', flexShrink: 0 }}>
         <button onClick={() => setActiveTab('news')}

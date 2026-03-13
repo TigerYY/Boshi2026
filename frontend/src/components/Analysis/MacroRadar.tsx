@@ -44,7 +44,7 @@ export default function MacroRadar({ report, financeData }: MacroRadarProps) {
             border: `1px solid ${isHighRisk ? '#ff224444' : '#1e2d40'}`,
             borderRadius: '4px',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'visible'
         }}>
             {/* Background radial glow */}
             <div style={{
