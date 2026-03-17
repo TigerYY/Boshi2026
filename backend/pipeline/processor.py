@@ -94,6 +94,8 @@ async def process_with_ai(news_item: NewsItem, db: AsyncSession) -> None:
     news_item.category = result["category"]
     news_item.confidence = result["confidence"]
     news_item.is_breaking = result["is_breaking"]
+    news_item.tags = result.get("tags", [])
+    news_item.impact_score = result.get("impact_score", 2.0)
 
     # Filter locations to Middle East
     valid_locs = [
@@ -123,6 +125,8 @@ async def process_with_ai(news_item: NewsItem, db: AsyncSession) -> None:
             source_news_id=news_item.id,
             confirmed=result["confidence"] >= 0.7,
             severity=3 if result["is_breaking"] else 2,
+            tags=news_item.tags,
+            impact_score=news_item.impact_score
         )
         db.add(event)
         await db.commit()

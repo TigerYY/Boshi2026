@@ -188,6 +188,13 @@ async def run_finance_scraper():
                 })
 
 
+async def run_synthesis_task():
+    """Cluster news items into narrative threads."""
+    from pipeline import synthesizer
+    async with AsyncSessionLocal() as db:
+        await synthesizer.run_synthesis(db)
+
+
 async def run_live_snapshot():
     """Save periodic snapshots of live flight and vessel data for historical tracking."""
     from models.schemas import FlightRecord, VesselRecord
@@ -360,4 +367,12 @@ def setup_scheduler():
         id="finance_scraper",
         replace_existing=True,
         misfire_grace_time=60,
+    )
+    # Run narrative synthesis every 30 minutes
+    scheduler.add_job(
+        run_synthesis_task,
+        trigger=IntervalTrigger(minutes=30),
+        id="narrative_synthesis",
+        replace_existing=True,
+        misfire_grace_time=300,
     )

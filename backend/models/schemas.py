@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean, JSON
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Float, Text, Boolean, DateTime, JSON, ForeignKey, func
 from .database import Base
 
 
@@ -23,6 +22,9 @@ class NewsItem(Base):
     image_analysis = Column(Text)
     processed = Column(Boolean, default=False)
     is_breaking = Column(Boolean, default=False)
+    tags = Column(JSON)                             # ["Tag1", "Tag2", ...]
+    impact_score = Column(Float, default=2.0)       # 1-10 importance
+    thread_id = Column(Integer, ForeignKey("narrative_threads.id"))
 
 
 class MilitaryEvent(Base):
@@ -43,6 +45,9 @@ class MilitaryEvent(Base):
     severity = Column(Integer, default=1)             # 1-5
     casualties = Column(JSON)                         # {killed: n, wounded: n, source: str}
     extra = Column(JSON)
+    tags = Column(JSON)                             # ["Tag1", "Tag2", ...]
+    impact_score = Column(Float, default=3.0)       # 1-10 importance
+    thread_id = Column(Integer, ForeignKey("narrative_threads.id"))
 
 
 class MilitaryUnit(Base):
@@ -135,3 +140,27 @@ class VesselRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, server_default=func.now(), index=True)
     data = Column(JSON)  # List of ship objects
+
+
+class NarrativeThread(Base):
+    __tablename__ = "narrative_threads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(200), nullable=False)
+    summary = Column(Text)
+    category = Column(String(50))
+    start_time = Column(DateTime)
+    last_updated = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
+
+class CausalLink(Base):
+    __tablename__ = "causal_links"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_type = Column(String(20))                  # news/event
+    source_id = Column(Integer)
+    target_type = Column(String(20))                  # news/event
+    target_id = Column(Integer)
+    relation_type = Column(String(50))                # caused/responded_to/escalated/conflicts_with
+    confidence = Column(Float, default=0.5)
+    created_at = Column(DateTime, server_default=func.now())

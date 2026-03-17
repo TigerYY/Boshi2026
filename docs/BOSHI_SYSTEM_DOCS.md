@@ -252,6 +252,30 @@ backend/
 | `key_developments` | JSON | 关键进展要点字符串数组 |
 | `outlook` | Text | 50 字未来态势研判 |
 
+#### NarrativeThread（`narrative_threads`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | |
+| `title` | String | 叙事脉络标题 |
+| `summary` | Text | 核心逻辑总结 |
+| `last_updated` | DateTime | 最后更新时间（用于图谱过滤联动）|
+| `created_at` | DateTime | 创建时间 |
+
+#### CausalLink（`causal_links`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | |
+| `source_type` | String | 源类型 (news/event) |
+| `source_id` | Integer | 源唯一 ID |
+| `target_type` | String | 目标类型 (news/event) |
+| `target_id` | Integer | 目标唯一 ID |
+| `relation_type` | String | 关系类型：caused/responded_to/escalated/conflicts_with |
+| `confidence` | Float | 置信度 |
+| `created_at` | DateTime | 生成时间 |
+
+
 #### ScraperStatus（`scraper_status`）
 
 | 字段 | 类型 | 说明 |
@@ -460,6 +484,13 @@ class ConnectionManager:
 | POST | `/api/control/refresh` | 触发完整刷新管道（爬取→AI处理→报告生成）|
 | POST | `/api/control/retranslate` | 将 `summary_zh` 无中文字符的条目标记为待处理，用于批量重翻译 |
 | GET | `/api/control/status` | 系统统计（新闻总数、事件总数、未处理数）|
+
+#### 知识图谱 `/api/graph`
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/graph/knowledge` | 聚合 Node-Link 结构。参数：`days` (追溯深度, 默认7), `interpretation` (模式切换, 默认True) |
+
 
 #### 其他
 

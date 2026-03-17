@@ -3,11 +3,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
+import logging
 
 from models.database import get_db
-from models.schemas import NewsItem, MilitaryEvent, AnalysisReport
+from models.schemas import NewsItem, MilitaryEvent, AnalysisReport, NarrativeThread, CausalLink
+from ._utils import iso_utc
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
+
+# 关系语义转换
+RELATION_ZH = {
+    "caused": "导致",
+    "responded_to": "响应",
+    "escalated": "升级",
+    "conflicts_with": "矛盾",
+    "mitigating": "缓解"
+}
 
 # 极大扩展地名、实体与术语映射
 EN_ZH_MAP = {
@@ -58,140 +71,151 @@ def clean_label(label: str) -> str:
     return EN_ZH_MAP.get(l, cleaned)
 
 @router.get("/knowledge")
-async def get_knowledge_graph(days: int = 7, db: AsyncSession = Depends(get_db)):
+async def get_knowledge_graph(
+    days: int = 7, 
+    interpretation: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    聚合最近 days 天的实体数据，构建 Node-Link 知识图谱结构
+    聚合最近 days 天的实体数据，构建 Node-Link 知识图谱结构。
+    interpretation: True 为 AI 研判模式（结构化），False 为纷杂情报模式（回归初版）。
     """
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    now = datetime.now(timezone.utc)
+    since = now if days == 0 else (now - timedelta(days=days))
 
-    # 1. 查询基础数据
-    # 显著提升 limit 以覆盖 30 天的全量关键情报
-    news_result = await db.execute(
-        select(NewsItem)
-        .where(NewsItem.published_at >= since, NewsItem.processed == True)
-        .order_by(NewsItem.published_at.desc())
-        .limit(2000)
-    )
+    # 查询基础数据
+    news_stmt = select(NewsItem).where(NewsItem.published_at >= since)
+    if interpretation:
+        news_stmt = news_stmt.where(NewsItem.processed == True).limit(2000)
+    else:
+        news_stmt = news_stmt.limit(3000) # 原始模式承载更多节点以体现“全貌”
+        
+    news_result = await db.execute(news_stmt.order_by(NewsItem.published_at.desc()))
     news_items = news_result.scalars().all()
 
     events_result = await db.execute(
-        select(MilitaryEvent)
-        .where(MilitaryEvent.occurred_at >= since)
-        .order_by(MilitaryEvent.occurred_at.desc())
-        .limit(1000)
+        select(MilitaryEvent).where(MilitaryEvent.occurred_at >= since).limit(1000)
     )
     events = events_result.scalars().all()
 
-    reports_result = await db.execute(
-        select(AnalysisReport)
-        .where(AnalysisReport.generated_at >= since)
-        .order_by(AnalysisReport.generated_at.desc())
-        .limit(12)
-    )
-    reports = reports_result.scalars().all()
-
-    # 2. 组装 Graph 结构
     nodes = []
     links = []
-    
-    # 用来避免重复的节点和边
     node_ids = set()
     links_set = set()
 
-    # 组名中文化映射
     GROUP_ZH = {
-        "event": "事件",
-        "news": "新闻",
-        "location": "地理",
-        "report": "研判",
-        "tag": "特征"
+        "event": "事件", "news": "情报", "location": "地理",
+        "report": "研判", "tag": "特征", "thread": "叙事脉络"
     }
 
     def add_node(node_id: str, label: str, group: str, attributes: Dict = None):
         if node_id not in node_ids:
-            # 缩写标签：如果是长字符串则截断
-            translated_label = clean_label(label)
-            display_label = translated_label[:12] + "..." if len(translated_label) > 14 else translated_label
+            display_label = label[:14] + ".." if len(label) > 16 else label
             nodes.append({
-                "id": node_id,
-                "label": display_label,
-                "group": group,
+                "id": node_id, "label": display_label, "group": group,
                 "group_zh": GROUP_ZH.get(group, group),
                 **(attributes or {})
             })
             node_ids.add(node_id)
 
-    def add_link(source: str, target: str, label: str = ""):
+    def add_link(source: str, target: str, label: str = "", attr: Dict = None):
         link_id = f"{source}->{target}"
         if link_id not in links_set:
-            links.append({
-                "source": source,
-                "target": target,
-                "label": label
-            })
+            links.append({"source": source, "target": target, "label": label, **(attr or {})})
             links_set.add(link_id)
 
-    # 3. 处理 Events -> Locations
-    for event in events:
-        event_id = f"event_{event.id}"
-        add_node(event_id, event.title, "event", {
-            "title": event.title,
-            "desc": event.description or "",
-            "val": event.severity * 2,
-            "time": str(event.occurred_at)
-        })
+    # ── [ 分支 A: AI 研判模式 ] ──────────────────────────────────────────────
+    if interpretation:
+        # 获取高阶合成数据
+        reports_result = await db.execute(select(AnalysisReport).where(AnalysisReport.generated_at >= since).limit(10))
+        reports = reports_result.scalars().all()
 
-        if event.location_name:
-            loc_name = clean_label(event.location_name)
-            loc_id = f"loc_{loc_name}"
-            add_node(loc_id, loc_name, "location", {"val": 3})
-            add_link(event_id, loc_id, "发生于")
+        thread_ids = {n.thread_id for n in news_items if n.thread_id} | {e.thread_id for e in events if e.thread_id}
+        threads = []
+        if thread_ids:
+            t_res = await db.execute(select(NarrativeThread).where(NarrativeThread.id.in_(list(thread_ids))))
+            threads = t_res.scalars().all()
 
-    # 4. 处理 News -> Locations/Tags
-    for news in news_items:
-        news_id = f"news_{news.id}"
-        
-        # 优先使用中文摘要作为标签，若无则使用截断后的标题
-        news_label = news.summary_zh or news.title
-        add_node(news_id, news_label, "news", {
-            "title": news.title,
-            "desc": news.summary_zh,
-            "val": 2,
-            "time": str(news.published_at)
-        })
+        # 1. 线索枢纽
+        for t in threads:
+            add_node(f"thread_{t.id}", t.title, "thread", {"desc": t.summary, "val": 10, "time": iso_utc(t.last_updated or t.created_at)})
 
-        if news.locations and isinstance(news.locations, list):
-            for loc in news.locations:
-                try:
-                    name = loc.get('name')
-                    if not name: continue
-                    loc_name = clean_label(name)
-                    loc_id = f"loc_{loc_name}"
-                    add_node(loc_id, loc_name, "location", {"val": 4})
-                    add_link(news_id, loc_id, "提及")
-                except Exception:
-                    continue
+        # 2. 军事事件
+        for e in events:
+            eid = f"event_{e.id}"
+            add_node(eid, e.title, "event", {
+                "desc": e.description, 
+                "val": 3 + e.impact_score,
+                "time": iso_utc(e.occurred_at)
+            })
+            if e.thread_id: add_link(eid, f"thread_{e.thread_id}", "属于")
+            if e.location_name:
+                loc_id = f"loc_{clean_label(e.location_name)}"
+                add_node(loc_id, clean_label(e.location_name), "location", {"val": 4})
+                add_link(eid, loc_id, "发生地")
 
-    # 5. 处理 AI Reports -> Location/Hotspots
-    for rep in reports:
-        rep_id = f"report_{rep.id}"
-        add_node(rep_id, f"综合研判 {rep.generated_at.strftime('%m-%d')}", "report", {
-            "title": "OSINT 研判",
-            "desc": rep.content,
-            "val": 5,
-            "time": str(rep.generated_at)
-        })
-        
-        if rep.hotspots and isinstance(rep.hotspots, list):
-            for hp in rep.hotspots:
-                try:
-                    name = hp.get('name')
-                    if not name: continue
-                    loc_name = clean_label(name)
-                    loc_id = f"loc_{loc_name}"
-                    add_node(loc_id, loc_name, "location", {"val": 5})
-                    add_link(rep_id, loc_id, "聚焦")
-                except Exception:
-                    continue
+        # 3. 研判新闻 (AI 提炼版)
+        for n in news_items:
+            nid = f"news_{n.id}"
+            add_node(nid, n.summary_zh or n.title, "news", {
+                "desc": n.summary_zh, 
+                "val": 2 + n.impact_score,
+                "time": iso_utc(n.published_at)
+            })
+            if n.thread_id: add_link(nid, f"thread_{n.thread_id}", "关联线索")
+            if n.locations:
+                for loc in n.locations:
+                    l_name = clean_label(loc.get('name'))
+                    if l_name:
+                        lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
+                        add_link(nid, lid, "提及")
+            if n.tags:
+                for t in n.tags:
+                    t_name = clean_label(t)
+                    tid = f"tag_{t_name}"; add_node(tid, t_name, "tag", {"val": 3})
+                    add_link(nid, tid, "包含")
+
+        # 4. 因果链路 (研判模式专有)
+        try:
+            cl_res = await db.execute(select(CausalLink).where(CausalLink.created_at >= since).limit(100))
+            for cl in cl_res.scalars().all():
+                s, t = f"{cl.source_type}_{cl.source_id}", f"{cl.target_type}_{cl.target_id}"
+                if s in node_ids and t in node_ids:
+                    add_link(s, t, RELATION_ZH.get(cl.relation_type, cl.relation_type), 
+                             {"type": "causal", "color": "#ffaa00", "curvature": 0.2})
+        except: pass
+
+    # ── [ 分支 B: 原始情报模式 ] ───────── (完全回溯至初版逻辑-无LLM) ───────────
+    else:
+        # 1. 原始新闻 (无摘要，无 thread，无标签，基于位置的原始映射)
+        for n in news_items:
+            nid = f"news_{n.id}"
+            # 严格使用原始抓取标题，不显示 summary_zh
+            add_node(nid, n.title, "news", {
+                "desc": n.content or "Raw Intel Output", 
+                "val": 2.5,
+                "time": iso_utc(n.published_at)
+            })
+            if n.locations:
+                for loc in n.locations:
+                    l_name = clean_label(loc.get('name'))
+                    if l_name:
+                        lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
+                        add_link(nid, lid, "Loc")
+
+        # 2. 原始军事事件 (点对点映射)
+        for e in events:
+            eid = f"event_{e.id}"
+            add_node(eid, e.title, "event", {
+                "desc": e.description, 
+                "val": 3.5,
+                "time": iso_utc(e.occurred_at)
+            })
+            if e.location_name:
+                l_name = clean_label(e.location_name)
+                lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
+                add_link(eid, lid, "Loc")
+
+        # 注意：此处没有任何 thread, causal, report 或“语义同步”边
 
     return {"nodes": nodes, "links": links}

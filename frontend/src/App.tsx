@@ -45,15 +45,22 @@ export default function App() {
       }));
     }).catch(err => console.error('Failed to fetch timeline range:', err));
 
-    // 每 5 分钟更新 endDate，确保新事件进入时间轴范围
+    // 每 10 秒更新一次 endDate（时间轴右边界），确保“现在”时刻实时平移
     const endDateTimer = setInterval(() => {
-      store.setTimeline(prev => ({
-        ...prev,
-        endDate: new Date(),
-        // 如果当前位于末尾，也跟随更新 currentDate
-        ...(prev.currentDate >= prev.endDate ? { currentDate: new Date() } : {}),
-      }));
-    }, 5 * 60 * 1000);
+      store.setTimeline(prev => {
+        const now = new Date();
+        
+        // 如果当前预览时间 (currentDate) 就在 endDate 附近（5分钟内），
+        // 或者之前就是对齐实时的，则让 currentDate 跟随 endDate 同步前进，实现 Live 效果
+        const isLive = (prev.endDate.getTime() - prev.currentDate.getTime()) < 5 * 60 * 1000;
+        
+        return {
+          ...prev,
+          endDate: now,
+          ...(isLive ? { currentDate: now } : {})
+        };
+      });
+    }, 10 * 1000);
     return () => clearInterval(endDateTimer);
   }, []);
 
@@ -120,7 +127,12 @@ export default function App() {
         timelineActive={store.timeline.enabled}
         refreshTrigger={headerRefreshKey}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(mode) => {
+          setViewMode(mode);
+          if (mode === 'graph') {
+            store.setTimeline(t => ({ ...t, enabled: true }));
+          }
+        }}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>

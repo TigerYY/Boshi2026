@@ -37,13 +37,14 @@ _analysis_semaphore = asyncio.Semaphore(1)
 
 
 def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-               num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> dict:
+               num_predict: int = 1024, model: str = ANALYSIS_MODEL, format: str = None) -> dict:
     """Blocking chat call — returns a dict with 'content' and 'thinking'."""
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
         "keep_alive": "30m",
+        "format": format, # json mode
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
@@ -65,11 +66,11 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
 
 
 async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-                 num_predict: int = 1024, model: str = ANALYSIS_MODEL) -> dict:
+                 num_predict: int = 1024, model: str = ANALYSIS_MODEL, format: str = None) -> dict:
     """Async wrapper: returns dict {"content": str, "thinking": str}."""
     sem = _fast_semaphore if model == FAST_MODEL else _analysis_semaphore
     async with sem:
-        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model)
+        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model, format)
 
 
 def _unload_sync() -> None:
@@ -104,12 +105,21 @@ def _parse_json_from_response(raw: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Find first { … } block
-    brace_start = raw.find("{")
-    brace_end = raw.rfind("}")
-    if brace_start != -1 and brace_end != -1:
+    # Find first { or [ block
+    s_obj = raw.find("{")
+    s_arr = raw.find("[")
+    
+    # Logic to find the start of either a dict or list
+    if s_obj == -1 and s_arr == -1:
+        raise ValueError(f"No valid JSON found in response: {raw[:300]}")
+    
+    start = s_obj if (s_arr == -1 or (s_obj != -1 and s_obj < s_arr)) else s_arr
+    end_char = "}" if raw[start] == "{" else "]"
+    end = raw.rfind(end_char)
+    
+    if start != -1 and end != -1:
         try:
-            return json.loads(raw[brace_start: brace_end + 1])
+            return json.loads(raw[start: end + 1])
         except json.JSONDecodeError:
             pass
 
@@ -153,7 +163,8 @@ async def summarize_and_classify(title: str, content: str) -> dict:
     example = (
         '{"summary_zh":"以色列对伊朗纳坦兹核设施实施大规模空袭，使用F-35战机携带精确制导炸弹，'
         '伊朗防空系统成功拦截部分导弹但核心设施受损。美国为此次行动提供情报支持，'
-        '伊朗随即宣布进入战时状态并誓言报复。","category":"airstrike","is_breaking":true,"tags":["F-35战机","纳坦兹核设施","防空系统"]}'
+        '伊朗随即宣布进入战时状态并誓言报复。","category":"airstrike","is_breaking":true,'
+        '"tags":["F-35战机","纳坦兹核设施","防空系统"],"impact_score":8.5}'
     )
     prompt = (
         "你是军事情报分析师。请分析以下新闻，只返回JSON对象，不要任何其他文字。\n\n"
@@ -161,19 +172,20 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         f"{example}\n\n"
         f"待分析新闻：\n标题：{title}\n"
         f"内容：{content[:1500]}\n\n"
-        "只返回包含以下4个字段的JSON：\n"
-        '{"summary_zh":"<3-5句连贯的中文摘要，要有军事分析视角>","category":"<从以下选一个：airstrike|naval|land|missile|diplomacy|sanction|movement|other>","is_breaking":<true或false>,"tags":["<核心武器/地点/组织标签1（中文）>","<标签2>"]}\n\n'
+        "只返回包含以下5个字段的JSON：\n"
+        '{"summary_zh":"<3-5句连贯的中文摘要，要有军事分析视角>","category":"<从以下选一个：airstrike|naval|land|missile|diplomacy|sanction|movement|other>","is_breaking":<true或false>,"tags":["<核心关键词1>","<关键词2>"],"impact_score":<1-10的战略影响力分数，浮点数>}\n\n'
         "规则：\n"
         "1. summary_zh必须是中文，3-5句话，包含关键军事信息\n"
-        "2. tags数组提取文中出现的关键军事武器型号、战略地点或武装组织（最多提取4个，纯中文）\n"
-        "3. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
-        "4. 只输出JSON，不要解释，不要markdown代码块"
+        "2. tags数组提取文中关键武器型号、战略地点或组织（最多4个，纯中文，如：'卡西姆苏莱曼尼','波斯湾','巡航导弹'）\n"
+        "3. impact_score评估标准：1-3普通新闻，4-6区域动态，7-8重度冲突/外交突破，9-10全面战争风险\n"
+        "4. is_breaking=true仅用于：直接军事打击、导弹发射、舰船交火等直接军事行动\n"
+        "5. 只输出JSON，不要解释，不要markdown代码块"
     )
     res = {"content": "", "thinking": ""}
     try:
         res = await _chat(
             [{"role": "user", "content": prompt}],
-            temperature=0.1,   # lower temperature = less hallucination
+            temperature=0.1,   
             num_predict=600,
             model=FAST_MODEL,
         )
@@ -182,10 +194,10 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         result.setdefault("summary_zh", title)
         result.setdefault("category", "other")
         result.setdefault("is_breaking", False)
-        tags = result.get("tags", [])
-        if isinstance(tags, list) and tags:
-            tag_str = ", ".join(str(t) for t in tags[:4])
-            result["summary_zh"] = f"[Tags: {tag_str}] {result['summary_zh']}"
+        result.setdefault("impact_score", 3.0)
+        result.setdefault("tags", [])
+        
+        # 移除之前的 Tags 拼接逻辑，保持摘要纯净
 
         # Confidence: assign by source tier based on title keywords rather than AI guessing
         source_hint = title.lower()
@@ -486,3 +498,99 @@ async def health_check() -> bool:
 
 # Alias used by processor.py
 check_ollama_health = health_check
+
+
+async def identify_narrative_threads(items: list[dict]) -> list[dict]:
+    """
+    Cluster a list of news items into coherent narrative 'story arcs'.
+    
+    Args:
+        items: list of {"id": int, "title": str, "summary": str}
+        
+    Returns:
+        list of {"title": str, "summary": str, "category": str, "item_ids": list[int]}
+    """
+    if not items:
+        return []
+
+    context = "\n".join([f"ID:{item['id']} | 标题:{item['title']} | 摘要:{item['summary']}" for item in items])
+    
+    prompt = (
+        "TASK: Cluster discrete news items into 2-4 narrative threads.\n"
+        "OUTPUT FORMAT: Strictly JSON array only. No markdown, no thinking, no preamble.\n"
+        "SCHEMA: [{\"title\":\"...\", \"summary\":\"...\", \"category\":\"...\", \"item_ids\":[id1, id2]}]\n\n"
+        "DATA:\n"
+        f"{context}\n\n"
+        "RULES:\n"
+        "1. title must be a specific theme (no placeholders).\n"
+        "2. item_ids must contain valid IDs from the DATA.\n"
+        "3. Each thread must have >= 2 items.\n"
+        "4. Output ONLY the JSON array."
+    )
+
+    messages = [
+        {"role": "system", "content": "You are a professional intelligence analyst. Cluster news into narrative threads. Output Stictly JSON array only."},
+        {"role": "user", "content": prompt}
+    ]
+
+    try:
+        res = await _chat(
+            messages,
+            temperature=0.1,
+            num_predict=2000,
+            model=FAST_MODEL, # Qwen2.5 3B is more compliant for strictly formatted tasks
+            format="json"
+        )
+        raw = res["content"] or res["thinking"]
+        return _parse_json_from_response(raw)
+    except Exception as e:
+        logger.error(f"identify_narrative_threads error: {e}")
+        return []
+
+async def infer_causal_links(items: list[dict]) -> list[dict]:
+    """
+    Given a list of news/events, ask LLM to identify causal or response relationships.
+    
+    Args:
+        items: list of {"id": int, "type": str, "title": str, "summary": str}
+        
+    Returns:
+        list of {"source_id": int, "source_type": str, "target_id": int, "target_type": str, "relation": str}
+    """
+    if len(items) < 2:
+        return []
+
+    context = "\n".join([f"({item['type']}_{item['id']}) {item['title']} - {item['summary']}" for item in items])
+    
+    prompt = (
+        "TASK: Identify causal or response relationships between these intelligence items.\n"
+        "Look for: A caused B, B is a response to A, A escalated B, etc.\n\n"
+        "DATA:\n"
+        f"{context}\n\n"
+        "OUTPUT FORMAT: Strictly JSON array only.\n"
+        "SCHEMA: [{\"source_id\": 1, \"source_type\": \"news\", \"target_id\": 2, \"target_type\": \"event\", \"relation\": \"caused\"}]\n\n"
+        "RELATION TYPES: caused, responded_to, escalated, conflicts_with, mitigating\n\n"
+        "RULES:\n"
+        "1. Only link items where a logical connection is explicitly inferred.\n"
+        "2. Ensure source_id and target_id are correct.\n"
+        "3. Output ONLY the JSON array."
+    )
+
+    messages = [
+        {"role": "system", "content": "You are a strategic intelligence analyst. Detect logical causal/response links between events. Output JSON only."},
+        {"role": "user", "content": prompt}
+    ]
+
+    try:
+        res = await _chat(
+            messages,
+            temperature=0.1,
+            num_predict=1000,
+            model=FAST_MODEL,
+            format="json"
+        )
+        raw = res["content"] or res["thinking"]
+        return _parse_json_from_response(raw)
+    except Exception as e:
+        logger.error(f"infer_causal_links error: {e}")
+        return []

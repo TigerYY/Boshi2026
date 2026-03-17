@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { format, addHours, differenceInHours, startOfDay, addDays } from 'date-fns';
-import type { MilitaryEvent } from '../../api/types';
 import type { TimelineState } from '../../store/useAppStore';
 import { fetchEvents } from '../../api/client';
 
@@ -17,7 +16,7 @@ interface Props {
 }
 
 export default function Timeline({ timeline, onChange }: Props) {
-  const [events, setEvents] = useState<MilitaryEvent[]>([]);
+  const [dataPoints, setDataPoints] = useState<{ date: Date; weight: number; count: number; types: Set<string> }[]>([]);
   const [dragging, setDragging] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -25,15 +24,61 @@ export default function Timeline({ timeline, onChange }: Props) {
   const currentDateRef = useRef(timeline.currentDate);
   useEffect(() => { currentDateRef.current = timeline.currentDate; }, [timeline.currentDate]);
 
-  useEffect(() => {
-    fetchEvents({
-      since: timeline.startDate.toISOString(),
-      until: timeline.endDate.toISOString(),
-    }).then(setEvents).catch(console.error);
-  }, [timeline.startDate, timeline.endDate]);
-
   const totalHours = differenceInHours(timeline.endDate, timeline.startDate);
   const currentHours = differenceInHours(timeline.currentDate, timeline.startDate);
+
+  useEffect(() => {
+    const params = {
+      since: timeline.startDate.toISOString(),
+      until: timeline.endDate.toISOString(),
+    };
+
+    Promise.all([
+      fetchEvents(params),
+      // Fetch news with a larger size to ensure coverage for timeline heatmap
+      import('../../api/client').then(m => m.fetchNews({ ...params, size: 2000 }))
+    ]).then(([eventsArr, newsResp]) => {
+      const newsArr = newsResp.items || [];
+      const combined = [
+        ...eventsArr.filter(e => e.occurred_at).map(e => ({
+          date: new Date(e.occurred_at!),
+          weight: e.severity || 2,
+          type: e.event_type
+        })),
+        ...newsArr.filter(n => n.published_at).map(n => ({
+          date: new Date(n.published_at!),
+          weight: 0.8, // News provides baseline "background" density
+          type: 'news'
+        }))
+      ];
+      
+      const bucketsCount = 400;
+      const buckets = new Array(bucketsCount).fill(0).map(() => ({
+        weight: 0,
+        count: 0,
+        types: new Set<string>()
+      }));
+
+      combined.forEach(p => {
+        const pos = differenceInHours(p.date, timeline.startDate) / totalHours;
+        if (pos < 0 || pos > 1) return;
+        const idx = Math.min(bucketsCount - 1, Math.floor(pos * bucketsCount));
+        buckets[idx].weight += p.weight;
+        buckets[idx].count += 1;
+        buckets[idx].types.add(p.type);
+      });
+      
+      // Calculate data points for rendering
+      setDataPoints(buckets.map((b, i) => ({
+        // Map back to a simplified structure for the UI
+        date: addHours(timeline.startDate, (i / bucketsCount) * totalHours),
+        weight: b.weight,
+        count: b.count,
+        types: b.types
+      })));
+    }).catch(console.error);
+  }, [timeline.startDate, timeline.endDate, totalHours]);
+
   const progress = totalHours > 0 ? Math.max(0, Math.min(1, currentHours / totalHours)) : 0;
 
   const seekTo = useCallback((clientX: number) => {
@@ -85,24 +130,24 @@ export default function Timeline({ timeline, onChange }: Props) {
 
   // 热力色带色阶：根据归一化权重返回颜色
   const heatColor = (norm: number, isPast: boolean): string => {
-    // 渲染底哨：对有事件的 bucket，强制权重不低于 0.12 以保证基础可见度
-    const effectiveNorm = Math.max(0.12, norm);
+    // 渲染底哨：对有事件的 bucket，强制权重不低于 0.15 以保证基础可见度 (提升 0.12 -> 0.15)
+    const effectiveNorm = Math.max(0.18, norm);
 
-    if (!isPast) return `rgba(255, 68, 68, ${0.15 + effectiveNorm * 0.25})`;
+    if (!isPast) return `rgba(0, 212, 255, ${0.1 + effectiveNorm * 0.2})`;
 
-    // 低烈度区：暗红 → 亮红 (提升基础亮度 80 -> 135)
-    if (effectiveNorm < 0.33) {
-      const t = effectiveNorm / 0.33;
-      return `rgb(${135 + t * 120}, ${Math.round(t * 20)}, ${Math.round(t * 10)})`;
+    // 低烈度区：深蓝绿 -> 暖橙 (提升基础亮度，强化新闻背景感)
+    if (effectiveNorm < 0.3) {
+      const t = effectiveNorm / 0.3;
+      return `rgb(${Math.round(40 + t * 180)}, ${Math.round(80 + t * 60)}, ${Math.round(200 - t * 140)})`;
     }
-    // 中烈度区：亮红 → 橙
-    if (effectiveNorm < 0.66) {
-      const t = (effectiveNorm - 0.33) / 0.33;
-      return `rgb(255, ${20 + Math.round(t * 87)}, ${10 + Math.round(t * 30)})`;
+    // 中烈度区：暖橙 -> 橙红
+    if (effectiveNorm < 0.7) {
+      const t = (effectiveNorm - 0.3) / 0.4;
+      return `rgb(255, ${140 - Math.round(t * 60)}, ${60 - Math.round(t * 40)})`;
     }
-    // 高烈度区：橙 → 亮黄白
-    const t = (effectiveNorm - 0.66) / 0.34;
-    return `rgb(255, ${107 + Math.round(t * 138)}, ${40 + Math.round(t * 155)})`;
+    // 高烈度区：火红 -> 白炽
+    const t = (effectiveNorm - 0.7) / 0.3;
+    return `rgb(255, ${80 + Math.round(t * 175)}, ${20 + Math.round(t * 235)})`;
   };
 
   const controlBar = (
@@ -236,26 +281,7 @@ export default function Timeline({ timeline, onChange }: Props) {
     </div>
   );
 
-  const BUCKETS = 200;
-  const intensityBuckets = new Array(BUCKETS).fill(0).map(() => ({
-    weight: 0,
-    count: 0,
-    events: [] as MilitaryEvent[],
-    types: new Set<string>(),
-  }));
-
-  events.forEach(e => {
-    if (!e.occurred_at) return;
-    const pos = differenceInHours(new Date(e.occurred_at), timeline.startDate) / totalHours;
-    if (pos < 0 || pos > 1) return;
-    const bucketIdx = Math.min(BUCKETS - 1, Math.floor(pos * BUCKETS));
-    intensityBuckets[bucketIdx].weight += (e.severity || 1);
-    intensityBuckets[bucketIdx].count += 1;
-    intensityBuckets[bucketIdx].events.push(e);
-    intensityBuckets[bucketIdx].types.add(e.event_type);
-  });
-
-  const maxWeight = Math.max(...intensityBuckets.map(b => b.weight), 1);
+  const maxWeight = Math.max(...dataPoints.map(b => b.weight), 1);
 
   return (
     <div
@@ -290,21 +316,21 @@ export default function Timeline({ timeline, onChange }: Props) {
               overflow: 'hidden',
               background: 'rgba(0, 212, 255, 0.03)',
             }}>
-              {intensityBuckets.map((b, i) => {
-                const norm = Math.sqrt(b.weight / maxWeight);
-                const isPast = b.count > 0
-                  ? b.events.some(e => new Date(e.occurred_at!) <= timeline.currentDate)
-                  : (i / BUCKETS) <= progress;
+              {dataPoints.map((b, i, arr) => {
+                // 使用对数缩放以平滑权重分布，防止极端事件压制背景数据
+                const norm = Math.log1p(b.weight) / Math.log1p(maxWeight);
+                const isPast = b.date <= timeline.currentDate;
+                
                 return (
                   <div
                     key={`hs-${i}`}
-                    title={b.count > 0 ? `${b.count}个事件: ${Array.from(b.types).join(', ')}` : undefined}
+                    title={b.count > 0 ? `${b.count}条动态: ${Array.from(b.types).join(', ')}` : undefined}
                     style={{
                       position: 'absolute',
                       top: 0,
                       bottom: 0,
-                      left: `${(i / BUCKETS) * 100}%`,
-                      width: `0.52%`, // 微量重叠 (100/200=0.5%) 以消除 Sub-pixel 渲染裂缝
+                      left: `${(i / arr.length) * 100}%`,
+                      width: `0.6%`, // 增加覆盖宽度 (100/200=0.5%) 以形成连续感并消除裂缝
                       background: b.count > 0 ? heatColor(norm, isPast) : 'transparent',
                       transition: 'background 0.3s ease',
                     }}

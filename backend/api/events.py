@@ -38,39 +38,16 @@ async def get_timeline_range(db: AsyncSession = Depends(get_db)):
         )
         first_event_at = result.scalar()
 
-    # Default fallback: 30 days ago
-    if not first_event_at:
-        first_event_at = datetime.now() - timedelta(days=30)
+    # 强制基准：2026-02-20 (解决显示稀疏问题，确保回溯深度)
+    target_base = datetime(2026, 2, 20)
+    if not first_event_at or first_event_at > target_base:
+        first_event_at = target_base
     
-    # Pad by 2 days
-    import datetime as dt
-    if isinstance(first_event_at, str):
-        from dateutil.parser import parse
-        first_event_at = parse(first_event_at)
-        
-    start_suggested = first_event_at - dt.timedelta(days=2)
+    start_suggested = first_event_at
     return {
         "start": iso_utc(start_suggested),
         "end": iso_utc(datetime.now()),
         "first_event": iso_utc(first_event_at)
-    }
-
-    # Default fallback: 30 days ago if DB is empty
-    if not first_event_at:
-        first_event_at = datetime.now() - timedelta(days=30)
-    
-    # Pad by 2 days before the first event for context
-    import datetime as dt
-    if isinstance(first_event_at, str):
-        # Handle string if SQLite returns it that way (unlikely with SQLAlchemy but for safety)
-        from dateutil.parser import parse
-        first_event_at = parse(first_event_at)
-        
-    start_suggested = first_event_at - dt.timedelta(days=2)
-    return {
-        "start": iso_utc(start_suggested),
-        "end": iso_utc(datetime.now()),
-        "first_event": iso_utc(first_event_at) if first_event_at else None
     }
 
 

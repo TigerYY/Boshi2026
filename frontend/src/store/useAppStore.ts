@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { MilitaryEvent, NewsItem } from '../api/types';
 
 export interface LayerVisibility {
@@ -34,61 +34,88 @@ const defaultLayers: LayerVisibility = {
   video_feeds: true,
 };
 
-// Simple global state using module-level variables + React state hooks
-// (In a larger app would use Zustand/Redux; this is sufficient here)
-
-let _globalNotifications: string[] = [];
-let _globalListeners: Array<() => void> = [];
-
-export function pushNotification(msg: string) {
-  _globalNotifications = [msg, ..._globalNotifications.slice(0, 9)];
-  _globalListeners.forEach(l => l());
+// --- SINGLETON STATE ENGINE ---
+// We move all state to module scope so it's consistent across all hook instances.
+interface GlobalState {
+  layers: LayerVisibility;
+  autoRefresh: boolean;
+  refreshInterval: number;
+  selectedEvent: MilitaryEvent | null;
+  selectedNews: NewsItem | null;
+  activePanel: 'news' | 'analysis' | 'control';
+  timeline: TimelineState;
+  notifications: string[];
 }
 
-export function useAppStore() {
-  const [layers, setLayers] = useState<LayerVisibility>(defaultLayers);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(60);
-  const [selectedEvent, setSelectedEvent] = useState<MilitaryEvent | null>(null);
-  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
-  const [activePanel, setActivePanel] = useState<'news' | 'analysis' | 'control'>('news');
-  const [, forceUpdate] = useState(0);
-  const [timeline, setTimeline] = useState<TimelineState>({
+let _state: GlobalState = {
+  layers: defaultLayers,
+  autoRefresh: true,
+  refreshInterval: 60,
+  selectedEvent: null,
+  selectedNews: null,
+  activePanel: 'news',
+  timeline: {
     enabled: true,
-    startDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
+    startDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
     endDate: new Date(),
     currentDate: new Date(),
     playing: false,
     speedMultiplier: 1,
-  });
+  },
+  notifications: [],
+};
 
-  // Register for notification updates
-  const listenerRef = useRef<(() => void) | null>(null);
-  if (!listenerRef.current) {
-    listenerRef.current = () => forceUpdate(n => n + 1);
-    _globalListeners.push(listenerRef.current);
-  }
+const _listeners = new Set<() => void>();
 
-  const toggleLayer = useCallback((key: keyof LayerVisibility) => {
-    setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+function _notify() {
+  _listeners.forEach(l => l());
+}
+
+export function pushNotification(msg: string) {
+  _state.notifications = [msg, ..._state.notifications.slice(0, 9)];
+  _notify();
+}
+
+export function useAppStore() {
+  const [, forceUpdate] = useState(0);
+
+  useEffect(() => {
+    const update = () => forceUpdate(n => n + 1);
+    _listeners.add(update);
+    return () => { _listeners.delete(update); };
   }, []);
 
-  const notifications = _globalNotifications;
+  const setTimeline = (val: Partial<TimelineState> | ((prev: TimelineState) => TimelineState)) => {
+    const next = typeof val === 'function' ? val(_state.timeline) : { ..._state.timeline, ...val };
+    _state.timeline = next as TimelineState;
+    _notify();
+  };
 
   return {
-    layers, toggleLayer,
-    autoRefresh, setAutoRefresh,
-    refreshInterval, setRefreshInterval,
-    selectedEvent, setSelectedEvent,
-    selectedNews, setSelectedNews,
-    activePanel, setActivePanel,
-    timeline, setTimeline: (update: Partial<TimelineState> | ((prev: TimelineState) => TimelineState)) => {
-      if (typeof update === 'function') {
-        setTimeline(prev => update(prev));
-      } else {
-        setTimeline(prev => ({ ...prev, ...update }));
-      }
+    layers: _state.layers,
+    toggleLayer: (key: keyof LayerVisibility) => {
+      _state.layers = { ..._state.layers, [key]: !_state.layers[key] };
+      _notify();
     },
-    notifications,
+    
+    autoRefresh: _state.autoRefresh,
+    setAutoRefresh: (val: boolean) => { _state.autoRefresh = val; _notify(); },
+    
+    refreshInterval: _state.refreshInterval,
+    setRefreshInterval: (val: number) => { _state.refreshInterval = val; _notify(); },
+    
+    selectedEvent: _state.selectedEvent,
+    setSelectedEvent: (val: MilitaryEvent | null) => { _state.selectedEvent = val; _notify(); },
+    
+    selectedNews: _state.selectedNews,
+    setSelectedNews: (val: NewsItem | null) => { _state.selectedNews = val; _notify(); },
+    
+    activePanel: _state.activePanel,
+    setActivePanel: (val: 'news' | 'analysis' | 'control') => { _state.activePanel = val; _notify(); },
+    
+    timeline: _state.timeline,
+    setTimeline,
+    
+    notifications: _state.notifications,
   };
 }
