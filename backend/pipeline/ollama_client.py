@@ -422,15 +422,16 @@ async def ask_osint_question(question: str, context: str) -> str:
     Passes the custom question and the recent DB timeline to Qwen.
     """
     sys_prompt = (
-        "你是一个具备全球地缘政治视野的顶级军事情报参谋。你身处 OSINT 战略指挥中心，正在为最高指挥官提供战局判读。你的言辞必须专业、硬朗、充满洞察力。\n\n"
-        "【作战准则】\n"
-        "1. **深度合成分析**：禁止简单罗列数据。你必须寻找【原始数据】中各碎片信息的内在联系，例如：一系列空袭是否预示着地面进攻？军事动向是否引起了比特币或原油价格的剧烈波动（避险资金流向）？\n"
-        "2. **硬度判读**：在回复起始，必须提供【一句话核心态势判读】（类似：\"核心局势：胡塞武装正在通过饱和攻击尝试瘫痪红海南部航道，市场避险情绪显著升温。\"）。\n"
-        "3. **情报逻辑推论**：分析逻辑需遵循：现状(Current) -> 影响(Impact) -> 预测(Forecast)。即使数据有限，也要基于已有情报拼图给出合理的军事逻辑推断，严禁用\"数据不足\"三字敷衍了事。\n"
-        "4. **禁止泄露元指令**：严禁在回复中包含任何关于指令、规则的解释。严禁出现\"严格基于数据\"、\"严禁幻想\"、\"根据任务说明\"等这类自述性的指令说明文字，直接给出你的专业判读结果。\n\n"
-        "【输出格式】\n"
-        "- 保持极简风格，使用 Markdown 加粗关键武器、地点和比例。\n"
-        "- 全程简体中文，语感保持军事指挥官的冷峻风格。\n\n"
+        "你身处军情战略指挥中心，是为高级指挥官提供直接战况判读的 AI 军情参谋。\n\n"
+        "【核心纪律】（绝对服从）\n"
+        "1. 绝对禁止输出任何内心独白、分析过程、或对用户指令的复述（如“用户要求...”、“我需要根据...”、“首先...”、“关键点”）。\n"
+        "2. 绝对禁止简单罗列新闻条目或机械翻译时间线。你必须寻找时间线背后的逻辑，进行情报级别的深度合成加工。\n"
+        "3. 第一句话必须是硬核的【核心态势判读】。\n\n"
+        "【强制输出模板】\n"
+        "**核心态势**：<一句话极简高密度判读>\n\n"
+        "**深度研判**：\n"
+        "<一段连贯的情报合成分析，指出事件之间的战略因果与未来发展趋势。如果有金融数据，必须结合能源或加密市场的规避风险情绪进行联动分析。绝对不能是条目罗列，必须是一个军事分析报告段落！>\n\n"
+        "（说明：必须严格按照上述模板输出，不要添加任何额外的问候、思考标签或后缀。使用冷峻果断的军事术语，通篇必须是简体中文。）\n\n"
         "【当前已解密战场数据（包含金融避险锚点）】\n"
         f"{context}"
     )
@@ -441,12 +442,25 @@ async def ask_osint_question(question: str, context: str) -> str:
     ]
     
     try:
-        # For OSINT queries, we want deep analysis.
+        import re
+        # For OSINT queries, we want deep analysis. Lower temp to prevent rambling
         logger.info(f"Dispatching OSINT query: {question[:30]}...")
-        res = await _chat(messages, temperature=0.2, num_predict=1536)
-        reply = (res["content"] or res["thinking"]).strip()
+        res = await _chat(messages, temperature=0.1, num_predict=1536)
+        
+        reply = res["content"].strip()
+        
+        # 暴力移除回复正文中可能泄露的 <think>...</think> 标签残留
+        reply = re.sub(r'<think>.*?</think>', '', reply, flags=re.DOTALL).strip()
+        
+        # Fallback: if the model wrote its entire response in 'thinking'
+        if not reply and res["thinking"]:
+            # Get the last paragraph of thinking to avoid the verbose initial thoughts
+            thinking_text = re.sub(r'<think>.*?</think>', '', res["thinking"], flags=re.DOTALL).strip()
+            paragraphs = [p.strip() for p in (thinking_text or res["thinking"]).split('\n\n') if p.strip()]
+            reply = paragraphs[-1] if paragraphs else res["thinking"].strip()
+            
         if not reply:
-            return "分析引擎因线路不通畅暂未返回实质性判度，请稍后再次轮询。"
+            return "分析引擎因线路不通畅暂未返回实质性判决，请稍后再次轮询。"
         return reply
     except Exception as e:
         logger.error(f"ask_osint_question OSINT Query Error: {e}")

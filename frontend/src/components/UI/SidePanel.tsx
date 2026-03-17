@@ -55,7 +55,7 @@ export default function SidePanel({ tabs, activeTab, onTabChange, children }: Pr
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
         {children}
       </div>
     </div>
