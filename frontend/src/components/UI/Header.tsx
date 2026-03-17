@@ -12,6 +12,8 @@ interface Props {
   onToggleTimeline: () => void;
   timelineActive: boolean;
   refreshTrigger?: number;
+  viewMode: 'map' | 'graph';
+  onViewModeChange: (mode: 'map' | 'graph') => void;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -30,7 +32,7 @@ function timeAgo(dateStr: string | null): string {
   return `${hrs}小时${remMins}分钟前`;
 }
 
-export default function Header({ ollamaOk, autoRefresh, notifications, onToggleTimeline, timelineActive, refreshTrigger }: Props) {
+export default function Header({ ollamaOk, autoRefresh, notifications, onToggleTimeline, timelineActive, refreshTrigger, viewMode, onViewModeChange }: Props) {
   const [time, setTime] = useState(new Date());
   const [lastSuccess, setLastSuccess] = useState<string | null>(null);
   const [showOsint, setShowOsint] = useState(false);
@@ -189,6 +191,32 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
       >
         <OsintTerminal />
       </Modal>
+
+      <div style={{ width: 1, height: 24, background: '#1e2d40' }} />
+
+      {/* View Toggles */}
+      <div style={{ display: 'flex', borderRadius: 2, overflow: 'hidden', border: '1px solid #1e2d40' }}>
+         <button
+            onClick={() => onViewModeChange('map')}
+            style={{
+               background: viewMode === 'map' ? '#00d4ff22' : 'transparent',
+               color: viewMode === 'map' ? '#00d4ff' : '#556677',
+               border: 'none', padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
+            }}
+         >
+            🗺 海图
+         </button>
+         <button
+            onClick={() => onViewModeChange('graph')}
+            style={{
+               background: viewMode === 'graph' ? '#00d4ff22' : 'transparent',
+               color: viewMode === 'graph' ? '#00d4ff' : '#556677',
+               border: 'none', padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit'
+            }}
+         >
+            🕸 图谱
+         </button>
+      </div>
 
       {/* Timeline toggle */}
       <button onClick={onToggleTimeline}

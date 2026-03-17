@@ -74,6 +74,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router, chat_router, graph_router
+
 app.include_router(news_router)
 app.include_router(events_router)
 app.include_router(units_router)
@@ -83,6 +85,7 @@ app.include_router(control_router)
 app.include_router(live_router)
 app.include_router(youtube_router)
 app.include_router(chat_router)
+app.include_router(graph_router)
 
 
 @app.websocket("/ws")

@@ -61,6 +61,9 @@ export const fetchOllamaHealth = () =>
 export const queryOsintChat = (message: string) =>
   http.post<{ reply: string; status: string }>('/api/chat/query', { message }).then(r => r.data);
 
+export const fetchKnowledgeGraph = (days = 7) =>
+  http.get<{ nodes: any[]; links: any[] }>('/api/graph/knowledge', { params: { days } }).then(r => r.data);
+
 // ── Control ───────────────────────────────────────────────────────────────
 export const fetchSources = () =>
   http.get<ScraperSource[]>('/api/control/sources').then(r => r.data);
