@@ -116,6 +116,10 @@ export default function App() {
 
   const timelineFrom = store.timeline.enabled ? store.timeline.startDate : null;
   const timelineTo = store.timeline.enabled ? store.timeline.currentDate : null;
+  /** 近实时锚点：导图按 5 分钟桶拉取，避免每 10s Live  tick 导致力导图抖动 */
+  const graphTimelineLive =
+    store.timeline.enabled &&
+    store.timeline.endDate.getTime() - store.timeline.currentDate.getTime() < 5 * 60 * 1000;
 
   return (
     <div className="scanline" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -152,7 +156,7 @@ export default function App() {
               abuDhabiRisk={report?.abu_dhabi_risk ?? null}
             />
           ) : (
-            <KnowledgeGraphView timelineTo={timelineTo} />
+            <KnowledgeGraphView timelineTo={timelineTo} timelineLive={graphTimelineLive} />
           )}
 
           {/* Timeline overlaid at bottom of view area */}

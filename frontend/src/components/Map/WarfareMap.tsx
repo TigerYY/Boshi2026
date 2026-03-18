@@ -330,7 +330,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     );
     const baseLayersEoxByYear: Record<string, L.TileLayer> = {};
     const eoxYears: { id: string; label: string; year: string }[] = [
-      { id: 's2cloudless-2024', label: '卫星(2024)', year: '2024' },
+      { id: 's2cloudless-2024_3857', label: '卫星(2024)', year: '2024' },
       { id: 's2cloudless-2023_3857', label: '卫星(2023)', year: '2023' },
       { id: 's2cloudless-2021_3857', label: '卫星(2021)', year: '2021' },
       { id: 's2cloudless-2019_3857', label: '卫星(2019)', year: '2019' },

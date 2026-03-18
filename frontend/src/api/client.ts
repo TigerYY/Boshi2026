@@ -27,9 +27,41 @@ export const fetchEvents = (params?: {
 export const fetchTimelineRange = () =>
   http.get<{ start: string; end: string; first_event: string }>('/api/events/range').then(r => r.data);
 
-export type TimelineDensityDay = { date: string; news_count: number; event_count: number; event_severity_sum: number };
-export const fetchTimelineDensity = (params: { since: string; until: string }) =>
-  http.get<{ days: TimelineDensityDay[] }>('/api/timeline/density', { params }).then(r => r.data);
+export type TimelineDensityDay = {
+  date: string;
+  news_count: number;
+  event_count: number;
+  event_severity_sum: number;
+  news_fetched_fallback?: number;
+};
+export type TimelineDensityMeta = {
+  requested_since?: string;
+  requested_until?: string;
+  effective_since_date?: string;
+  effective_until_date?: string;
+  calendar_span_days?: number;
+  matched_day_count?: number;
+  total_news_rows?: number;
+  total_event_rows?: number;
+  total_news_fetched_fallback?: number;
+  timezone_basis?: string;
+  window_signature?: string;
+  window_signature_plain?: string;
+  sum_news_count_days?: number;
+  sum_event_count_days?: number;
+  sums_consistent?: boolean;
+  error?: string;
+};
+export const fetchTimelineDensity = (
+  params: { since: string; until: string },
+  signal?: AbortSignal
+) =>
+  http
+    .get<{ days: TimelineDensityDay[]; meta?: TimelineDensityMeta }>('/api/timeline/density', {
+      params,
+      signal,
+    })
+    .then((r) => r.data);
 
 export const fetchEventsGeoJson = (params?: { since?: string; until?: string }) =>
   http.get<GeoJsonFeatureCollection>('/api/events/geojson', { params }).then(r => r.data);
@@ -101,7 +133,8 @@ export type KnowledgeGraphMeta = {
 export const fetchKnowledgeGraph = (
   days: number = 7,
   interpretation: boolean = true,
-  until?: Date | null
+  until?: Date | null,
+  signal?: AbortSignal
 ) => {
   const params: Record<string, string | number | boolean> = {
     days: Math.max(1, Math.min(365, Math.round(days))),
@@ -109,7 +142,10 @@ export const fetchKnowledgeGraph = (
   };
   if (until) params.until = until.toISOString();
   return http
-    .get<{ nodes: any[]; links: any[]; meta?: KnowledgeGraphMeta }>('/api/graph/knowledge', { params })
+    .get<{ nodes: any[]; links: any[]; meta?: KnowledgeGraphMeta }>('/api/graph/knowledge', {
+      params,
+      signal,
+    })
     .then(r => r.data);
 };
 

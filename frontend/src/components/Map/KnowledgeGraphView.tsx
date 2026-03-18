@@ -3,6 +3,23 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { fetchKnowledgeGraph, type KnowledgeGraphMeta } from '../../api/client';
 
 const DEBOUNCE_MS = 400;
+/** 实时锚点下按该粒度拉取，避免每 10s 推进导致重复请求与力导图重排 */
+const UNTIL_BUCKET_MS = 5 * 60 * 1000;
+/** 实时模式下锚点桶跨越 ≥ 该值（×5min）才再次 zoomToFit */
+const ZOOM_LIVE_BUCKET_DELTA = 12;
+
+function graphPayloadSignature(nodes: any[], links: any[]): string {
+    const nodeIds = nodes.map((n) => String(n.id)).sort().join('\0');
+    const linkKeys = links
+        .map((l) => {
+            const s = typeof l.source === 'object' ? (l.source as { id: string }).id : l.source;
+            const t = typeof l.target === 'object' ? (l.target as { id: string }).id : l.target;
+            return `${s}->${t}`;
+        })
+        .sort()
+        .join('\0');
+    return `n${nodes.length}|l${links.length}\n${nodeIds}\n${linkKeys}`;
+}
 
 function buildKnowledgeGraphDisplay(
     rawGraphData: { nodes: any[]; links: any[] },
@@ -86,54 +103,150 @@ function buildKnowledgeGraphDisplay(
 
 interface Props {
     timelineTo: Date | null;
+    /** 为 true 时按 5 分钟桶拉取并冻结前端窗口锚点，减轻 Live  tick 抖动 */
+    timelineLive?: boolean;
 }
 
-export default function KnowledgeGraphView({ timelineTo }: Props) {
+export default function KnowledgeGraphView({ timelineTo, timelineLive = false }: Props) {
     const [rawGraphData, setRawGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
     const [graphMeta, setGraphMeta] = useState<KnowledgeGraphMeta | null>(null);
     const [lookbackDays, setLookbackDays] = useState(7);
     const [interpretation, setInterpretation] = useState(true);
     const [loading, setLoading] = useState(true);
+    const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    /** 实时模式下用于前端过滤的 until，与最近一次成功请求的锚点对齐，避免每 10s 变引用触发重排 */
+    const [liveDisplayUntilMs, setLiveDisplayUntilMs] = useState<number | null>(null);
+
     const fgRef = useRef<any>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const graphFingerprintRef = useRef<string>('');
+    const fetchAbortRef = useRef<AbortController | null>(null);
+    const requestSeqRef = useRef(0);
+    const hasLoadedOnceRef = useRef(false);
+    const lastAppliedSigRef = useRef('');
+    const lastZoomBucketRef = useRef<number>(-999999);
+    const forceZoomNextFetchRef = useRef(true);
     const pendingZoomToFitRef = useRef(false);
 
-    useEffect(() => {
-        const days = Math.max(1, Math.min(365, lookbackDays));
+    const anchorDate = timelineTo ?? new Date();
+    const untilBucketKey = Math.floor(anchorDate.getTime() / UNTIL_BUCKET_MS);
+    const timelineFetchDep = timelineLive ? untilBucketKey : anchorDate.getTime();
 
+    const fetchParamsRef = useRef({
+        interpretation,
+        lookbackDays,
+        timelineTo,
+        timelineLive,
+    });
+    fetchParamsRef.current = { interpretation, lookbackDays, timelineTo, timelineLive };
+
+    const effectiveFilterUntil: Date | null = useMemo(() => {
+        if (timelineLive && liveDisplayUntilMs != null) return new Date(liveDisplayUntilMs);
+        if (timelineLive) {
+            return new Date((untilBucketKey + 1) * UNTIL_BUCKET_MS - 1);
+        }
+        return timelineTo;
+    }, [timelineLive, liveDisplayUntilMs, timelineTo, untilBucketKey]);
+
+    useEffect(() => {
+        forceZoomNextFetchRef.current = true;
+    }, [interpretation, lookbackDays]);
+
+    useEffect(() => {
+        if (!timelineLive) setLiveDisplayUntilMs(null);
+    }, [timelineLive]);
+
+    useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
             debounceRef.current = null;
-            let mounted = true;
-            setLoading(true);
-            fetchKnowledgeGraph(days, interpretation, timelineTo ?? undefined)
+            const { interpretation: interp, lookbackDays: daysLb, timelineTo: to, timelineLive: live } =
+                fetchParamsRef.current;
+            const days = Math.max(1, Math.min(365, daysLb));
+            const until = to ?? new Date();
+
+            if (fetchAbortRef.current) fetchAbortRef.current.abort();
+            const controller = new AbortController();
+            fetchAbortRef.current = controller;
+            const seq = ++requestSeqRef.current;
+
+            const isFirstLoad = !hasLoadedOnceRef.current;
+            if (isFirstLoad) setLoading(true);
+            else setBackgroundRefreshing(true);
+
+            fetchKnowledgeGraph(days, interp, until, controller.signal)
                 .then((data) => {
-                    if (mounted) {
-                        setRawGraphData({ nodes: data.nodes ?? [], links: data.links ?? [] });
-                        setGraphMeta(data.meta ?? null);
-                        setLoading(false);
+                    if (seq !== requestSeqRef.current) return;
+                    const nodes = data.nodes ?? [];
+                    const links = data.links ?? [];
+                    setGraphMeta(data.meta ?? null);
+
+                    const sig = graphPayloadSignature(nodes, links);
+                    if (sig !== lastAppliedSigRef.current) {
+                        lastAppliedSigRef.current = sig;
+                        setRawGraphData({ nodes, links });
                     }
+
+                    if (live) setLiveDisplayUntilMs(until.getTime());
+
+                    const bucket = Math.floor(until.getTime() / UNTIL_BUCKET_MS);
+                    let shouldZoom = false;
+                    if (forceZoomNextFetchRef.current) {
+                        shouldZoom = true;
+                        forceZoomNextFetchRef.current = false;
+                    } else if (isFirstLoad && nodes.length > 0) {
+                        shouldZoom = true;
+                    } else if (!live) {
+                        shouldZoom = nodes.length > 0;
+                    } else if (Math.abs(bucket - lastZoomBucketRef.current) >= ZOOM_LIVE_BUCKET_DELTA) {
+                        shouldZoom = nodes.length > 0;
+                    }
+
+                    if (shouldZoom && nodes.length > 0) {
+                        lastZoomBucketRef.current = bucket;
+                        pendingZoomToFitRef.current = true;
+                    }
+
+                    hasLoadedOnceRef.current = true;
+                    setLoading(false);
+                    setBackgroundRefreshing(false);
+                    setLastUpdated(new Date());
                 })
-                .catch((err) => {
+                .catch((err: { name?: string; code?: string; message?: string }) => {
+                    const canceled =
+                        err?.name === 'CanceledError' ||
+                        err?.code === 'ERR_CANCELED' ||
+                        (typeof err?.message === 'string' && err.message.toLowerCase().includes('cancel'));
+                    if (canceled) return;
                     console.error('Failed to load knowledge graph', err);
-                    if (mounted) setLoading(false);
+                    if (seq === requestSeqRef.current) {
+                        setLoading(false);
+                        setBackgroundRefreshing(false);
+                    }
                 });
         }, DEBOUNCE_MS);
-
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
-    }, [interpretation, lookbackDays, timelineTo?.getTime() ?? 0]);
+    }, [interpretation, lookbackDays, timelineFetchDep, timelineLive]);
 
-    const colorMap: Record<string, string> = useMemo(() => ({
-        event: '#ff4444',
-        news: '#44aaff',
-        location: '#44ffaa',
-        report: '#ffcc00',
-        tag: '#aaffff',
-        thread: '#bf00ff' // 紫色代表叙事聚合枢纽
-    }), []);
+    useEffect(() => {
+        return () => {
+            fetchAbortRef.current?.abort();
+        };
+    }, []);
+
+    const colorMap: Record<string, string> = useMemo(
+        () => ({
+            event: '#ff4444',
+            news: '#44aaff',
+            location: '#44ffaa',
+            report: '#ffcc00',
+            tag: '#aaffff',
+            thread: '#bf00ff',
+        }),
+        []
+    );
 
     const ws = graphMeta?.window_start ?? '';
     const we = graphMeta?.window_end ?? '';
@@ -148,23 +261,15 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
         () =>
             buildKnowledgeGraphDisplay(rawGraphData, interpretation, {
                 backendWindowed: false,
-                timelineTo,
+                timelineTo: effectiveFilterUntil,
                 lookbackDays,
             }),
-        [rawGraphData, interpretation, timelineTo, lookbackDays]
+        [rawGraphData, interpretation, effectiveFilterUntil, lookbackDays]
     );
 
     const displayData = hasBackendWindow ? displayWindowed : displayLegacy;
 
-    useEffect(() => {
-        const nodes = displayData.nodes;
-        const links = displayData.links;
-        const fp = `${nodes.length}|${links.length}|${[...nodes].map((n) => String(n.id)).sort().join(',')}`;
-        if (fp !== graphFingerprintRef.current) {
-            graphFingerprintRef.current = fp;
-            pendingZoomToFitRef.current = true;
-        }
-    }, [displayData]);
+    const untilKeyLabel = `${untilBucketKey}`;
 
     return (
         <div style={{ width: '100%', height: '100%', background: '#0a0e14', position: 'relative' }}>
@@ -198,14 +303,14 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                 nodeCanvasObject={(node, ctx, globalScale) => {
                     const label = node.label || '';
                     const fontSize = Math.max(12 / globalScale, 2);
-                    
+
                     ctx.font = `${fontSize}px Sans-Serif`;
                     const textWidth = ctx.measureText(label).width;
-                    const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
+                    const bckgDimensions = [textWidth, fontSize].map((n) => n + fontSize * 0.2);
 
                     const baseR = Math.sqrt(Math.max(node.val || 1, 1)) * 2;
                     const r = node.group === 'thread' ? baseR * 1.5 : baseR;
-                    
+
                     ctx.beginPath();
                     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
                     ctx.fillStyle = colorMap[node.group] || node.color;
@@ -216,9 +321,14 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                         ctx.lineWidth = 2 / globalScale;
                         ctx.stroke();
                     }
-                    
+
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - r - bckgDimensions[1] - 2, bckgDimensions[0], bckgDimensions[1]);
+                    ctx.fillRect(
+                        node.x - bckgDimensions[0] / 2,
+                        node.y - r - bckgDimensions[1] - 2,
+                        bckgDimensions[0],
+                        bckgDimensions[1]
+                    );
 
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
@@ -232,17 +342,17 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                     ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI, false);
                     ctx.fill();
                 }}
-                linkDirectionalArrowLength={(link: any) => link.type === 'causal' ? 4 : 2}
+                linkDirectionalArrowLength={(link: any) => (link.type === 'causal' ? 4 : 2)}
                 linkDirectionalArrowRelPos={1}
                 linkCurvature={(link: any) => link.curvature || 0}
                 linkColor={(link: any) => {
                     if (!interpretation && link.dashed) return 'rgba(255,255,255,0.26)';
-                    return link.color ? link.color : (link.dashed ? 'rgba(30, 45, 64, 0.3)' : '#1e2d40');
+                    return link.color ? link.color : link.dashed ? 'rgba(30, 45, 64, 0.3)' : '#1e2d40';
                 }}
-                linkLineDash={(link: any) => link.dashed ? [2, 2] : null}
+                linkLineDash={(link: any) => (link.dashed ? [2, 2] : null)}
                 linkCanvasObjectMode={() => 'after'}
                 linkCanvasObject={(link: any, ctx, globalScale) => {
-                    if (!link.label || globalScale < 1.2) return; 
+                    if (!link.label || globalScale < 1.2) return;
                     const start = link.source;
                     const end = link.target;
                     if (typeof start !== 'object' || typeof end !== 'object') return;
@@ -250,74 +360,172 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
 
                     const textPos = {
                         x: start.x + (end.x - start.x) / 2,
-                        y: start.y + (end.y - start.y) / 2
+                        y: start.y + (end.y - start.y) / 2,
                     };
 
                     const fontSize = Math.max(8 / globalScale, 1.5);
                     ctx.font = `${fontSize}px Sans-Serif`;
-                    
+
                     ctx.fillStyle = link.type === 'causal' ? '#ffaa00' : 'rgba(255, 255, 255, 0.4)';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText(link.label, textPos.x, textPos.y);
                 }}
             />
-            {/* Loading & Empty State Overlays */}
             {loading && (
-                <div style={{
-                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    color: '#00d4ff', fontSize: '14px', textAlign: 'center', zIndex: 10,
-                    background: 'rgba(0,0,0,0.7)', padding: '20px', borderRadius: '8px', border: '1px solid #00d4ff44'
-                }}>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        color: '#00d4ff',
+                        fontSize: '14px',
+                        textAlign: 'center',
+                        zIndex: 10,
+                        background: 'rgba(0,0,0,0.7)',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        border: '1px solid #00d4ff44',
+                    }}
+                >
                     <div className="live-dot" style={{ margin: '0 auto 10px' }} />
                     正在调取态势神经元...
                 </div>
             )}
-            
-            {!loading && displayData.nodes.length === 0 && (
-                <div style={{
-                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    color: '#ff4444', fontSize: '14px', textAlign: 'center', zIndex: 10,
-                    background: 'rgba(0,0,0,0.7)', padding: '20px', borderRadius: '8px', border: '1px solid #ff444444'
-                }}>
-                    ⚠️ 当前窗口无匹配情报<br/>
-                    <span style={{ fontSize: '11px', color: '#8b9ab0', marginTop: '5px', display: 'block' }}>请尝试调整底部时间轴（锚点）或左上角窗口宽度（天）</span>
-                    <span style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', display: 'block' }}>超出数据覆盖范围部分无数据</span>
+
+            {backgroundRefreshing && !loading && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        zIndex: 10,
+                        fontSize: '10px',
+                        color: '#00d4ff',
+                        background: 'rgba(0,0,0,0.65)',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #00d4ff44',
+                    }}
+                >
+                    后台同步中…
                 </div>
             )}
 
-            {/* Overlay hint & Quick Controls */}
-            <div style={{
-                position: 'absolute', top: 20, left: 20, 
-                color: '#8b9ab0', fontSize: '12px', background: 'rgba(8, 12, 18, 0.85)', 
-                backdropFilter: 'blur(10px)',
-                padding: '15px', borderRadius: '8px', border: '1px solid #1e2d40',
-                fontFamily: 'monospace',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                minWidth: '280px'
-            }}>
-                <div style={{ color: '#00d4ff', marginBottom: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {!loading && displayData.nodes.length === 0 && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        color: '#ff4444',
+                        fontSize: '14px',
+                        textAlign: 'center',
+                        zIndex: 10,
+                        background: 'rgba(0,0,0,0.7)',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        border: '1px solid #ff444444',
+                    }}
+                >
+                    ⚠️ 当前窗口无匹配情报
+                    <br />
+                    <span
+                        style={{ fontSize: '11px', color: '#8b9ab0', marginTop: '5px', display: 'block' }}
+                    >
+                        请尝试调整底部时间轴（锚点）或左上角窗口宽度（天）
+                    </span>
+                    <span
+                        style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', display: 'block' }}
+                    >
+                        超出数据覆盖范围部分无数据
+                    </span>
+                </div>
+            )}
+
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 20,
+                    left: 20,
+                    color: '#8b9ab0',
+                    fontSize: '12px',
+                    background: 'rgba(8, 12, 18, 0.85)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    border: '1px solid #1e2d40',
+                    fontFamily: 'monospace',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                    minWidth: '280px',
+                }}
+            >
+                <div
+                    style={{
+                        color: '#00d4ff',
+                        marginBottom: '16px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                    }}
+                >
                     <span>[ OSINT 态势导图 ]</span>
                     <span style={{ fontSize: '10px', opacity: 0.6 }}>
                         {timelineTo ? '锚点·时间轴' : '锚点·实时'}
                     </span>
                 </div>
 
-                {/* AI Interpretation Toggle */}
-                <div style={{ 
-                    marginBottom: '15px', 
-                    padding: '8px 12px', 
-                    background: 'rgba(0,212,255,0.05)', 
-                    borderRadius: '4px',
-                    border: '1px solid rgba(0,212,255,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: interpretation ? '#00d4ff' : '#8b9ab0' }}>
+                <div
+                    style={{
+                        marginBottom: '12px',
+                        fontSize: '9px',
+                        color: '#556677',
+                        lineHeight: 1.5,
+                        borderBottom: '1px solid #ffffff11',
+                        paddingBottom: '10px',
+                    }}
+                >
+                    <div>
+                        刷新粒度：{timelineLive ? `实时·5min 桶 #${untilKeyLabel}` : '锚点随动'}
+                    </div>
+                    <div>
+                        最近更新：
+                        {lastUpdated
+                            ? lastUpdated.toLocaleTimeString('zh-CN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                              })
+                            : '—'}
+                    </div>
+                    {backgroundRefreshing && !loading ? <div style={{ color: '#00d4ff' }}>状态：后台刷新</div> : null}
+                </div>
+
+                <div
+                    style={{
+                        marginBottom: '15px',
+                        padding: '8px 12px',
+                        background: 'rgba(0,212,255,0.05)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0,212,255,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: interpretation ? '#00d4ff' : '#8b9ab0',
+                        }}
+                    >
                         {interpretation ? 'AI 研判模式（聚合）' : '原始情报模式（纷杂）'}
                     </span>
-                    <div 
+                    <div
                         onClick={() => setInterpretation(!interpretation)}
                         style={{
                             width: '40px',
@@ -327,40 +535,54 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                             position: 'relative',
                             cursor: 'pointer',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            border: `1px solid ${interpretation ? '#00d4ff' : '#30475e'}`
+                            border: `1px solid ${interpretation ? '#00d4ff' : '#30475e'}`,
                         }}
                     >
-                        <div style={{
-                            width: '14px',
-                            height: '14px',
-                            background: interpretation ? '#00d4ff' : '#8b9ab0',
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            top: '2px',
-                            left: interpretation ? '22px' : '2px',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: interpretation ? '0 0 8px #00d4ff' : 'none'
-                        }} />
+                        <div
+                            style={{
+                                width: '14px',
+                                height: '14px',
+                                background: interpretation ? '#00d4ff' : '#8b9ab0',
+                                borderRadius: '50%',
+                                position: 'absolute',
+                                top: '2px',
+                                left: interpretation ? '22px' : '2px',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: interpretation ? '0 0 8px #00d4ff' : 'none',
+                            }}
+                        />
                     </div>
                 </div>
-                
-                {/* 窗口宽度（天）— 与底部时间轴锚点共同决定查询窗口 */}
+
                 <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '10px' }}>
                         <span>窗口宽度（天）</span>
                         <span style={{ color: '#00d4ff' }}>{lookbackDays} 天</span>
                     </div>
-                    <input 
-                        type="range" 
-                        min="1" 
-                        max="30" 
-                        value={lookbackDays} 
-                        onChange={(e) => setLookbackDays(parseInt(e.target.value))}
+                    <input
+                        type="range"
+                        min="1"
+                        max="30"
+                        value={lookbackDays}
+                        onChange={(e) => setLookbackDays(parseInt(e.target.value, 10))}
                         style={{ width: '100%', cursor: 'pointer', accentColor: '#00d4ff' }}
                     />
                     {graphMeta && (
                         <div style={{ marginTop: '8px', fontSize: '9px', color: '#556677' }}>
-                            当前窗口：{new Date(graphMeta.window_start).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} ~ {new Date(graphMeta.window_end).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            当前窗口：
+                            {new Date(graphMeta.window_start).toLocaleString('zh-CN', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            })}{' '}
+                            ~{' '}
+                            {new Date(graphMeta.window_end).toLocaleString('zh-CN', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            })}
                         </div>
                     )}
                 </div>
@@ -399,11 +621,19 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #ffffff11', fontSize: '9px', color: '#445566', fontStyle: 'italic' }}>
-                    {interpretation 
+                <div
+                    style={{
+                        marginTop: '12px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid #ffffff11',
+                        fontSize: '9px',
+                        color: '#445566',
+                        fontStyle: 'italic',
+                    }}
+                >
+                    {interpretation
                         ? '* 紫色枢纽自动聚合逻辑线索，琥珀色箭头代表因果推演。'
-                        : '* 原始情报模式：虚线为地理/主题隐性关联，呈现纷杂态势。'
-                    }
+                        : '* 原始情报模式：虚线为地理/主题隐性关联，呈现纷杂态势。'}
                 </div>
             </div>
         </div>

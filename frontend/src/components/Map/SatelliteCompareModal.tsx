@@ -11,9 +11,25 @@ const TARGETS = [
 ] as const;
 
 const YEAR_LEFT = '2019';
-const YEAR_RIGHT = '2024';
 const LAYER_LEFT = 's2cloudless-2019_3857';
-const LAYER_RIGHT = 's2cloudless-2024';
+
+/** 右侧可选：2024 年度无云 mosaic；或 EOX 滚动「最新」底图（无 2025 年度层时更接近现时） */
+const RIGHT_IMAGERY_OPTIONS = [
+  {
+    id: '2024',
+    shortLabel: '2024 年度',
+    headerLabel: '2024 年',
+    layerId: 's2cloudless-2024_3857',
+    desc: 'Sentinel-2 年度无云合成',
+  },
+  {
+    id: 'latest',
+    shortLabel: '最新（滚动）',
+    headerLabel: '最新',
+    layerId: 's2cloudless_3857',
+    desc: 'EOX 滚动无云底图，持续更新',
+  },
+] as const;
 
 interface Props {
   isOpen: boolean;
@@ -22,6 +38,10 @@ interface Props {
 
 export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
   const [targetId, setTargetId] = useState<string>(TARGETS[0].id);
+  const [rightImageryId, setRightImageryId] = useState<string>(RIGHT_IMAGERY_OPTIONS[0].id);
+  const rightOpt =
+    RIGHT_IMAGERY_OPTIONS.find((o) => o.id === rightImageryId) ?? RIGHT_IMAGERY_OPTIONS[0];
+
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const mapLeftRef = useRef<L.Map | null>(null);
@@ -40,8 +60,11 @@ export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
       { ...EOX_OPTS, attribution: `© <a href="https://s2maps.eu">Sentinel-2 cloudless</a> (${YEAR_LEFT})` }
     );
     const layerRight = L.tileLayer(
-      `${EOX_BASE}/${LAYER_RIGHT}/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg`,
-      { ...EOX_OPTS, attribution: `© <a href="https://s2maps.eu">Sentinel-2 cloudless</a> (${YEAR_RIGHT})` }
+      `${EOX_BASE}/${rightOpt.layerId}/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg`,
+      {
+        ...EOX_OPTS,
+        attribution: `© <a href="https://s2maps.eu">Sentinel-2 cloudless</a> (${rightOpt.headerLabel})`,
+      }
     );
 
     const mapLeft = L.map(leftRef.current, { center, zoom, zoomControl: true, attributionControl: false });
@@ -65,7 +88,7 @@ export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
       mapLeftRef.current = null;
       mapRightRef.current = null;
     };
-  }, [isOpen, targetId, target.lat, target.lon, target.zoom]);
+  }, [isOpen, targetId, target.lat, target.lon, target.zoom, rightImageryId]);
 
   if (!isOpen) return null;
 
@@ -105,7 +128,7 @@ export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
               目标：
               <select
                 value={targetId}
-                onChange={e => setTargetId(e.target.value)}
+                onChange={(e) => setTargetId(e.target.value)}
                 style={{
                   marginLeft: 6,
                   padding: '4px 8px',
@@ -116,8 +139,34 @@ export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
                   fontSize: 11,
                 }}
               >
-                {TARGETS.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                {TARGETS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ fontSize: 11, color: '#556677' }}>
+              右侧：
+              <select
+                value={rightImageryId}
+                onChange={(e) => setRightImageryId(e.target.value)}
+                title="EOX 暂无 2025 年度无云切片；可选「最新」使用滚动更新底图"
+                style={{
+                  marginLeft: 6,
+                  padding: '4px 8px',
+                  background: '#0a0e14',
+                  border: '1px solid #1e2d40',
+                  color: '#c9d1d9',
+                  borderRadius: 2,
+                  fontSize: 11,
+                  maxWidth: 200,
+                }}
+              >
+                {RIGHT_IMAGERY_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.shortLabel}
+                  </option>
                 ))}
               </select>
             </label>
@@ -145,14 +194,28 @@ export default function SatelliteCompareModal({ isOpen, onClose }: Props) {
             <div ref={leftRef} style={{ flex: 1, minHeight: 320 }} />
           </div>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '6px 10px', background: 'rgba(0,0,0,0.3)', fontSize: 11, color: '#00d4ff', fontWeight: 600 }}>
-              {YEAR_RIGHT} 年
+            <div
+              style={{
+                padding: '6px 10px',
+                background: 'rgba(0,0,0,0.3)',
+                fontSize: 11,
+                color: '#00d4ff',
+                fontWeight: 600,
+              }}
+            >
+              {rightOpt.headerLabel}
+              {rightOpt.id === '2024' ? ' 年' : ''}
+              <span style={{ fontWeight: 400, color: '#556677', marginLeft: 6 }}>{rightOpt.desc}</span>
             </div>
             <div ref={rightRef} style={{ flex: 1, minHeight: 320 }} />
           </div>
         </div>
         <div style={{ padding: '8px 16px', fontSize: 10, color: '#445566', borderTop: '1px solid #1e2d40' }}>
           © Sentinel-2 cloudless by EOX (Contains modified Copernicus Sentinel data). 左右视口同步平移与缩放。
+          <span style={{ display: 'block', marginTop: 4, color: '#556677' }}>
+            说明：EOX 目前提供 2024 年度无云合成；尚无 2025 年度公开瓦片。选「最新（滚动）」为 EOX
+            持续维护的合成底图，更接近当前地表，但与左侧 2019 年对比时语义为「近年」而非固定年份。
+          </span>
         </div>
       </div>
     </div>
