@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, asc
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 
 from models.database import get_db
@@ -70,21 +70,47 @@ def clean_label(label: str) -> str:
     l = cleaned.lower()
     return EN_ZH_MAP.get(l, cleaned)
 
+def _parse_until(until_str: Optional[str]) -> datetime:
+    """Parse ISO until to UTC datetime; default now."""
+    now = datetime.now(timezone.utc)
+    if not until_str:
+        return now
+    try:
+        from dateutil import parser as dateutil_parser
+        dt = dateutil_parser.isoparse(until_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return now
+
+
 @router.get("/knowledge")
 async def get_knowledge_graph(
-    days: int = 7, 
+    days: int = 7,
     interpretation: bool = True,
-    db: AsyncSession = Depends(get_db)
+    until: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    聚合最近 days 天的实体数据，构建 Node-Link 知识图谱结构。
-    interpretation: True 为 AI 研判模式（结构化），False 为纷杂情报模式（回归初版）。
+    按时间窗口聚合实体数据，构建 Node-Link 知识图谱。
+    until: 窗口右边界（ISO 时间，默认当前）；days: 窗口宽度（天）。
+    windowStart = until - days, windowEnd = until；所有查询基于 [windowStart, windowEnd]。
+    interpretation: True 为 AI 研判模式，False 为原始情报模式。
     """
+    interpretation = bool(interpretation)
     now = datetime.now(timezone.utc)
-    since = now if days == 0 else (now - timedelta(days=days))
+    window_end = _parse_until(until)
+    if window_end > now:
+        window_end = now
+    days_clamped = max(1, min(365, days))
+    window_start = window_end - timedelta(days=days_clamped)
 
-    # 查询基础数据
-    news_stmt = select(NewsItem).where(NewsItem.published_at >= since)
+    # 查询基础数据（严格在窗口内）
+    news_stmt = select(NewsItem).where(
+        NewsItem.published_at >= window_start,
+        NewsItem.published_at <= window_end,
+    )
     if interpretation:
         news_stmt = news_stmt.where(NewsItem.processed == True).limit(2000)
     else:
@@ -94,7 +120,13 @@ async def get_knowledge_graph(
     news_items = news_result.scalars().all()
 
     events_result = await db.execute(
-        select(MilitaryEvent).where(MilitaryEvent.occurred_at >= since).limit(1000)
+        select(MilitaryEvent)
+        .where(
+            MilitaryEvent.occurred_at >= window_start,
+            MilitaryEvent.occurred_at <= window_end,
+        )
+        .order_by(MilitaryEvent.occurred_at.desc())
+        .limit(1000)
     )
     events = events_result.scalars().all()
 
@@ -110,7 +142,7 @@ async def get_knowledge_graph(
 
     def add_node(node_id: str, label: str, group: str, attributes: Dict = None):
         if node_id not in node_ids:
-            display_label = label[:14] + ".." if len(label) > 16 else label
+            display_label = (label[:14] + "..") if len(label) > 14 else label
             nodes.append({
                 "id": node_id, "label": display_label, "group": group,
                 "group_zh": GROUP_ZH.get(group, group),
@@ -127,67 +159,107 @@ async def get_knowledge_graph(
     # ── [ 分支 A: AI 研判模式 ] ──────────────────────────────────────────────
     if interpretation:
         # 获取高阶合成数据
-        reports_result = await db.execute(select(AnalysisReport).where(AnalysisReport.generated_at >= since).limit(10))
+        reports_result = await db.execute(select(AnalysisReport).where(
+            AnalysisReport.generated_at >= window_start,
+            AnalysisReport.generated_at <= window_end,
+        ).order_by(AnalysisReport.generated_at.desc()).limit(10))
         reports = reports_result.scalars().all()
 
         thread_ids = {n.thread_id for n in news_items if n.thread_id} | {e.thread_id for e in events if e.thread_id}
         threads = []
         if thread_ids:
-            t_res = await db.execute(select(NarrativeThread).where(NarrativeThread.id.in_(list(thread_ids))))
+            ids_sorted = sorted(thread_ids)
+            t_res = await db.execute(
+                select(NarrativeThread)
+                .where(NarrativeThread.id.in_(ids_sorted))
+                .order_by(asc(NarrativeThread.id))
+            )
             threads = t_res.scalars().all()
 
-        # 1. 线索枢纽
+        def _report_at(r: AnalysisReport):
+            return (r.generated_at or r.period_end or now).replace(tzinfo=timezone.utc) if r.generated_at or r.period_end else now
+
+        def _nearest_report_id(dt) -> Optional[str]:
+            if not reports:
+                return None
+            try:
+                t = dt.replace(tzinfo=timezone.utc) if dt and getattr(dt, "tzinfo", None) is None else (dt or now)
+            except Exception:
+                t = now
+            best = min(reports, key=lambda r: abs((_report_at(r) - t).total_seconds()))
+            return f"report_{best.id}"
+
+        # 1. 研判报告节点（中心锚点）
+        for r in reports:
+            rid = f"report_{r.id}"
+            label = (r.outlook or r.content or f"研判{r.report_type or '综合'}")[:14]
+            if len((r.outlook or r.content or "") or "") > 14:
+                label = label.rstrip() + ".."
+            add_node(rid, label or f"报告{r.id}", "report", {
+                "desc": r.outlook or r.content,
+                "val": 12,
+                "time": iso_utc(r.generated_at or r.period_end),
+                "impact_score": r.intensity_score,
+            })
+
+        # 2. 线索枢纽
         for t in threads:
             add_node(f"thread_{t.id}", t.title, "thread", {"desc": t.summary, "val": 10, "time": iso_utc(t.last_updated or t.created_at)})
+        # 将叙事脉络挂到时间重叠的最近一期报告上
+        for t in threads:
+            t_time = t.last_updated or t.created_at
+            if t_time:
+                rid = _nearest_report_id(t_time)
+                if rid and rid in node_ids:
+                    add_link(f"thread_{t.id}", rid, "汇总")
 
-        # 2. 军事事件
+        # 3. 军事事件
         for e in events:
             eid = f"event_{e.id}"
             add_node(eid, e.title, "event", {
-                "desc": e.description, 
+                "desc": e.description,
                 "val": 3 + e.impact_score,
                 "time": iso_utc(e.occurred_at)
             })
-            if e.thread_id: add_link(eid, f"thread_{e.thread_id}", "属于")
-            if e.location_name:
-                loc_id = f"loc_{clean_label(e.location_name)}"
-                add_node(loc_id, clean_label(e.location_name), "location", {"val": 4})
-                add_link(eid, loc_id, "发生地")
+            if e.thread_id:
+                add_link(eid, f"thread_{e.thread_id}", "属于")
+            else:
+                rid = _nearest_report_id(e.occurred_at)
+                if rid and rid in node_ids:
+                    add_link(eid, rid, "纳入研判")
 
-        # 3. 研判新闻 (AI 提炼版)
+        # 4. 研判新闻 (AI 提炼版)
         for n in news_items:
             nid = f"news_{n.id}"
             add_node(nid, n.summary_zh or n.title, "news", {
-                "desc": n.summary_zh, 
+                "desc": n.summary_zh,
                 "val": 2 + n.impact_score,
                 "time": iso_utc(n.published_at)
             })
-            if n.thread_id: add_link(nid, f"thread_{n.thread_id}", "关联线索")
-            if n.locations:
-                for loc in n.locations:
-                    l_name = clean_label(loc.get('name'))
-                    if l_name:
-                        lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
-                        add_link(nid, lid, "提及")
-            if n.tags:
-                for t in n.tags:
-                    t_name = clean_label(t)
-                    tid = f"tag_{t_name}"; add_node(tid, t_name, "tag", {"val": 3})
-                    add_link(nid, tid, "包含")
+            if n.thread_id:
+                add_link(nid, f"thread_{n.thread_id}", "关联线索")
+            else:
+                rid = _nearest_report_id(n.published_at)
+                if rid and rid in node_ids:
+                    add_link(nid, rid, "纳入研判")
 
-        # 4. 因果链路 (研判模式专有)
+        # 5. 因果链路 (研判模式专有)：按节点是否在窗口内过滤，不按 created_at，保证历史窗口因果线不丢
         try:
-            cl_res = await db.execute(select(CausalLink).where(CausalLink.created_at >= since).limit(100))
+            cl_res = await db.execute(select(CausalLink).order_by(asc(CausalLink.id)).limit(300))
             for cl in cl_res.scalars().all():
                 s, t = f"{cl.source_type}_{cl.source_id}", f"{cl.target_type}_{cl.target_id}"
                 if s in node_ids and t in node_ids:
-                    add_link(s, t, RELATION_ZH.get(cl.relation_type, cl.relation_type), 
+                    add_link(s, t, RELATION_ZH.get(cl.relation_type, cl.relation_type),
                              {"type": "causal", "color": "#ffaa00", "curvature": 0.2})
-        except: pass
+        except Exception as e:
+            logger.warning("Causal links fetch failed: %s", e)
 
-    # ── [ 分支 B: 原始情报模式 ] ───────── (完全回溯至初版逻辑-无LLM) ───────────
+    # ── [ 分支 B: 原始情报模式 ] ───────── (展现地理与隐性关联的熵值结构) ───────────
     else:
-        # 1. 原始新闻 (无摘要，无 thread，无标签，基于位置的原始映射)
+        # 隐性关联的样式 (虚线)
+        impl_attr = {"dashed": True, "color": "rgba(255,255,255,0.15)"}
+
+        # 1. 原始新闻 (释放大量实体，形成密集星系)
         for n in news_items:
             nid = f"news_{n.id}"
             # 严格使用原始抓取标题，不显示 summary_zh
@@ -197,11 +269,20 @@ async def get_knowledge_graph(
                 "time": iso_utc(n.published_at)
             })
             if n.locations:
-                for loc in n.locations:
+                locs = sorted(n.locations, key=lambda x: (x.get("name") or ""))
+                for loc in locs:
                     l_name = clean_label(loc.get('name'))
                     if l_name:
-                        lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
-                        add_link(nid, lid, "Loc")
+                        lid = f"loc_{l_name}"
+                        add_node(lid, l_name, "location", {"val": 4})
+                        add_link(nid, lid, "", impl_attr)
+            if n.tags:
+                for t in sorted(n.tags, key=lambda x: str(x)):
+                    t_name = clean_label(t)
+                    if t_name:
+                        tid = f"tag_{t_name}"
+                        add_node(tid, t_name, "tag", {"val": 3})
+                        add_link(nid, tid, "", impl_attr)
 
         # 2. 原始军事事件 (点对点映射)
         for e in events:
@@ -213,9 +294,19 @@ async def get_knowledge_graph(
             })
             if e.location_name:
                 l_name = clean_label(e.location_name)
-                lid = f"loc_{l_name}"; add_node(lid, l_name, "location", {"val": 4})
-                add_link(eid, lid, "Loc")
+                lid = f"loc_{l_name}"
+                add_node(lid, l_name, "location", {"val": 4})
+                add_link(eid, lid, "", impl_attr)
 
-        # 注意：此处没有任何 thread, causal, report 或“语义同步”边
+        # 注意：此处没有任何 thread, causal 或 report 节点
 
-    return {"nodes": nodes, "links": links}
+    return {
+        "nodes": nodes,
+        "links": links,
+        "meta": {
+            "window_start": iso_utc(window_start),
+            "window_end": iso_utc(window_end),
+            "data_coverage_start": iso_utc(window_start),
+            "data_coverage_end": iso_utc(window_end),
+        },
+    }

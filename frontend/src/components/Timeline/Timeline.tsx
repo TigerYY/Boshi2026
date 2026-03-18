@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { format, addHours, differenceInHours, startOfDay, addDays } from 'date-fns';
+import { format, addHours, differenceInHours, differenceInDays, startOfDay, addDays } from 'date-fns';
 import type { TimelineState } from '../../store/useAppStore';
-import { fetchEvents } from '../../api/client';
+import { fetchTimelineDensity } from '../../api/client';
 
 const ACCENT = '#00d4ff';
 const ACCENT_BG = 'rgba(0, 212, 255, 0.13)';
@@ -33,49 +33,51 @@ export default function Timeline({ timeline, onChange }: Props) {
       until: timeline.endDate.toISOString(),
     };
 
-    Promise.all([
-      fetchEvents(params),
-      // Fetch news with a larger size to ensure coverage for timeline heatmap
-      import('../../api/client').then(m => m.fetchNews({ ...params, size: 2000 }))
-    ]).then(([eventsArr, newsResp]) => {
-      const newsArr = newsResp.items || [];
-      const combined = [
-        ...eventsArr.filter(e => e.occurred_at).map(e => ({
-          date: new Date(e.occurred_at!),
-          weight: e.severity || 2,
-          type: e.event_type
-        })),
-        ...newsArr.filter(n => n.published_at).map(n => ({
-          date: new Date(n.published_at!),
-          weight: 0.8, // News provides baseline "background" density
-          type: 'news'
-        }))
-      ];
-      
+    fetchTimelineDensity(params).then(({ days }) => {
       const bucketsCount = 400;
       const buckets = new Array(bucketsCount).fill(0).map(() => ({
         weight: 0,
         count: 0,
-        types: new Set<string>()
+        types: new Set<string>(),
       }));
 
-      combined.forEach(p => {
-        const pos = differenceInHours(p.date, timeline.startDate) / totalHours;
+      days.forEach((d) => {
+        const dayDate = new Date(d.date + 'T12:00:00Z');
+        const pos = differenceInHours(dayDate, timeline.startDate) / totalHours;
         if (pos < 0 || pos > 1) return;
         const idx = Math.min(bucketsCount - 1, Math.floor(pos * bucketsCount));
-        buckets[idx].weight += p.weight;
-        buckets[idx].count += 1;
-        buckets[idx].types.add(p.type);
+        buckets[idx].weight += d.event_severity_sum + d.news_count * 0.8;
+        buckets[idx].count += d.news_count + d.event_count;
+        if (d.news_count > 0) buckets[idx].types.add('news');
+        if (d.event_count > 0) buckets[idx].types.add('event');
       });
-      
-      // Calculate data points for rendering
-      setDataPoints(buckets.map((b, i) => ({
-        // Map back to a simplified structure for the UI
-        date: addHours(timeline.startDate, (i / bucketsCount) * totalHours),
-        weight: b.weight,
-        count: b.count,
-        types: b.types
-      })));
+
+      const kernel = [0.04, 0.08, 0.12, 0.16, 0.2, 0.16, 0.12, 0.08, 0.04];
+      const halfK = Math.floor(kernel.length / 2);
+      const smoothedBuckets = buckets.map((b, i) => {
+        let smoothedWeight = 0;
+        let kernelSum = 0;
+        for (let j = 0; j < kernel.length; j++) {
+          const idx = i - halfK + j;
+          if (idx >= 0 && idx < bucketsCount) {
+            smoothedWeight += buckets[idx].weight * kernel[j];
+            kernelSum += kernel[j];
+          }
+        }
+        return {
+          ...b,
+          weight: kernelSum > 0 ? smoothedWeight / kernelSum : 0,
+        };
+      });
+
+      setDataPoints(
+        smoothedBuckets.map((b, i) => ({
+          date: addHours(timeline.startDate, (i / bucketsCount) * totalHours),
+          weight: b.weight,
+          count: b.count,
+          types: b.types,
+        }))
+      );
     }).catch(console.error);
   }, [timeline.startDate, timeline.endDate, totalHours]);
 
@@ -129,9 +131,9 @@ export default function Timeline({ timeline, onChange }: Props) {
   if (!timeline.enabled) return null;
 
   // 热力色带色阶：根据归一化权重返回颜色
-  const heatColor = (norm: number, isPast: boolean): string => {
-    // 渲染底哨：对有事件的 bucket，强制权重不低于 0.15 以保证基础可见度 (提升 0.12 -> 0.15)
-    const effectiveNorm = Math.max(0.18, norm);
+  const heatColor = (norm: number, isPast: boolean, isDirectHit: boolean = true): string => {
+    // 渲染底哨：对有直接事件的 bucket，强制权重保证基础可见度；扩散光只取 norm
+    const effectiveNorm = isDirectHit ? Math.max(0.18, norm) : norm;
 
     if (!isPast) return `rgba(0, 212, 255, ${0.1 + effectiveNorm * 0.2})`;
 
@@ -283,6 +285,26 @@ export default function Timeline({ timeline, onChange }: Props) {
 
   const maxWeight = Math.max(...dataPoints.map(b => b.weight), 1);
 
+  const totalDays = Math.max(1, differenceInDays(timeline.endDate, timeline.startDate));
+  const daysWithDataSet = new Set(
+    dataPoints.filter(b => b.count > 0).map(b => format(startOfDay(b.date), 'yyyy-MM-dd'))
+  );
+  const daysWithData = daysWithDataSet.size;
+  let maxConsecutiveEmpty = 0;
+  let run = 0;
+  let day = startOfDay(timeline.startDate);
+  while (day < timeline.endDate) {
+    const key = format(day, 'yyyy-MM-dd');
+    if (daysWithDataSet.has(key)) {
+      run = 0;
+    } else {
+      run += 1;
+      maxConsecutiveEmpty = Math.max(maxConsecutiveEmpty, run);
+    }
+    day = addDays(day, 1);
+  }
+  const showSparseHint = maxConsecutiveEmpty >= 5;
+
   return (
     <div
       className="hud-panel corner-brackets"
@@ -302,6 +324,13 @@ export default function Timeline({ timeline, onChange }: Props) {
 
       {!collapsed && (
         <div style={{ padding: '4px 12px 4px' }}>
+          {/* 数据覆盖提示 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 10, color: MUTED }}>
+            <span>有数据 {daysWithData} / 总 {totalDays} 天</span>
+            {showSparseHint && (
+              <span style={{ color: 'rgba(255, 180, 80, 0.9)' }}>当前时段原始数据稀疏</span>
+            )}
+          </div>
           {/* 整个可拖拽区域 */}
           <div
             ref={trackRef}
@@ -331,7 +360,9 @@ export default function Timeline({ timeline, onChange }: Props) {
                       bottom: 0,
                       left: `${(i / arr.length) * 100}%`,
                       width: `0.6%`, // 增加覆盖宽度 (100/200=0.5%) 以形成连续感并消除裂缝
-                      background: b.count > 0 ? heatColor(norm, isPast) : 'transparent',
+                      background: (b.count > 0 || b.weight > 0.02)
+                        ? heatColor(norm, isPast, b.count > 0)
+                        : 'rgba(0, 212, 255, 0.04)',
                       transition: 'background 0.3s ease',
                     }}
                   />

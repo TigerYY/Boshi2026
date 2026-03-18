@@ -37,23 +37,35 @@ async def run_synthesis(db: AsyncSession, lookback_hours: int = 48) -> int:
     ]
     
     # 3. Call LLM to identify threads
-    threads_data = await ollama_client.identify_narrative_threads(data_for_llm)
-    
-    if isinstance(threads_data, dict):
-        threads_data = [threads_data] # Normalize to list
-    elif not isinstance(threads_data, list):
-        logger.error(f"LLM returned invalid data format: {type(threads_data)}")
+    raw_threads = await ollama_client.identify_narrative_threads(data_for_llm)
+    # 兼容包装结构：{ "threads" | "data" | "items": [...] }
+    if isinstance(raw_threads, list):
+        threads_data = raw_threads
+    elif isinstance(raw_threads, dict):
+        for key in ("threads", "data", "items"):
+            if isinstance(raw_threads.get(key), list):
+                threads_data = raw_threads[key]
+                break
+        else:
+            threads_data = [raw_threads]
+    else:
+        logger.error("LLM returned invalid data format: %s", type(raw_threads))
         return 0
 
     from models import CausalLink
+    valid_ids = {item.id for item in items}
     count = 0
     for t_data in threads_data:
         if not isinstance(t_data, dict):
-            logger.warning(f"Skipping invalid thread data entry: {t_data}")
+            logger.warning("Skipping invalid thread data entry: %s", t_data)
             continue
-            
+
         try:
-            item_ids = t_data.get("item_ids", [])
+            raw_item_ids = t_data.get("item_ids", [])
+            item_ids = [iid for iid in raw_item_ids if iid in valid_ids]
+            if raw_item_ids and not item_ids:
+                logger.warning("Thread item_ids all invalid (valid set size %d), skipping", len(valid_ids))
+                continue
             title = t_data.get("title")
             if not item_ids or not title:
                 continue
@@ -77,26 +89,27 @@ async def run_synthesis(db: AsyncSession, lookback_hours: int = 48) -> int:
             db.add(thread)
             await db.flush() # get ID
             
-            # Link items to thread
+            # Link items to thread; collect news + events for causal inference
             threaded_items = []
+            event_ids_linked = set()
             for iid in item_ids:
-                # Update news items
                 await db.execute(
                     update(NewsItem)
                     .where(NewsItem.id == iid)
                     .values(thread_id=thread.id)
                 )
-                # Find the news item for causal analysis context
                 ni = await db.get(NewsItem, iid)
                 if ni:
                     threaded_items.append({"id": ni.id, "type": "news", "title": ni.title, "summary": ni.summary_zh or ni.title})
-
-                # Also try to link any military events spawned from these news items
-                await db.execute(
-                    update(MilitaryEvent)
-                    .where(MilitaryEvent.source_news_id == iid)
-                    .values(thread_id=thread.id)
-                )
+                ev_stmt = select(MilitaryEvent).where(MilitaryEvent.source_news_id == iid)
+                ev_res = await db.execute(ev_stmt)
+                for ev in ev_res.scalars().all():
+                    await db.execute(
+                        update(MilitaryEvent).where(MilitaryEvent.id == ev.id).values(thread_id=thread.id)
+                    )
+                    if ev.id not in event_ids_linked:
+                        event_ids_linked.add(ev.id)
+                        threaded_items.append({"id": ev.id, "type": "event", "title": ev.title, "summary": ev.description or ev.title})
             
             # 4. Infer causal links within this thread
             if len(threaded_items) >= 2:
@@ -126,13 +139,17 @@ async def run_synthesis(db: AsyncSession, lookback_hours: int = 48) -> int:
                         if s_id is None or t_id is None:
                             continue
 
+                        conf = c.get("confidence", 0.8)
+                        if not isinstance(conf, (int, float)):
+                            conf = 0.8
+                        conf = max(0.0, min(1.0, float(conf)))
                         link = CausalLink(
                             source_type=c.get("source_type", "news"),
                             source_id=s_id,
                             target_type=c.get("target_type", "news"),
                             target_id=t_id,
                             relation_type=c.get("relation", "caused"),
-                            confidence=0.8
+                            confidence=conf,
                         )
                         db.add(link)
                     except Exception as ce:

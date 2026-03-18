@@ -1,33 +1,130 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { fetchKnowledgeGraph } from '../../api/client';
+import { fetchKnowledgeGraph, type KnowledgeGraphMeta } from '../../api/client';
+
+const DEBOUNCE_MS = 400;
+
+function buildKnowledgeGraphDisplay(
+    rawGraphData: { nodes: any[]; links: any[] },
+    interpretation: boolean,
+    opts:
+        | { backendWindowed: true }
+        | { backendWindowed: false; timelineTo: Date | null; lookbackDays: number }
+): { nodes: any[]; links: any[] } {
+    if (!rawGraphData.nodes || rawGraphData.nodes.length === 0) return { nodes: [], links: [] };
+
+    let dynamicNodeIds: Set<string>;
+
+    if (opts.backendWindowed) {
+        const dynamicNodes = rawGraphData.nodes.filter(
+            (node) => node.group !== 'location' && node.group !== 'tag'
+        );
+        dynamicNodeIds = new Set(dynamicNodes.map((n) => n.id));
+    } else {
+        const now = opts.timelineTo ? opts.timelineTo.getTime() : Date.now();
+        const cutoffUpper = now;
+        const LOOKBACK_MS = opts.lookbackDays * 24 * 60 * 60 * 1000;
+        const cutoffLower = cutoffUpper - LOOKBACK_MS;
+        const dynamicNodes = rawGraphData.nodes.filter((node) => {
+            if (node.group === 'location' || node.group === 'tag') return false;
+            if (node.group === 'thread' || node.group === 'report') return false;
+            if (!node.time) return true;
+            const nodeTime = new Date(node.time).getTime();
+            if (isNaN(nodeTime)) return true;
+            if (nodeTime > cutoffUpper || nodeTime < cutoffLower) return false;
+            return true;
+        });
+        dynamicNodeIds = new Set(dynamicNodes.map((n) => n.id));
+    }
+
+    const activeLinks = rawGraphData.links.filter((link) => {
+        const sid = typeof link.source === 'object' ? link.source.id : link.source;
+        const tid = typeof link.target === 'object' ? link.target.id : link.target;
+        return dynamicNodeIds.has(sid) || dynamicNodeIds.has(tid);
+    });
+
+    const linkedStaticNodeIds = new Set<string>();
+    activeLinks.forEach((l) => {
+        const sid = typeof l.source === 'object' ? l.source.id : l.source;
+        const tid = typeof l.target === 'object' ? l.target.id : l.target;
+        if (!dynamicNodeIds.has(sid)) linkedStaticNodeIds.add(sid);
+        if (!dynamicNodeIds.has(tid)) linkedStaticNodeIds.add(tid);
+    });
+
+    let visibleNodes = rawGraphData.nodes.filter(
+        (n) => dynamicNodeIds.has(n.id) || linkedStaticNodeIds.has(n.id)
+    );
+
+    let visibleNodeIds = new Set(visibleNodes.map((n) => n.id));
+    let finalLinks = activeLinks.filter((l) => {
+        const sid = typeof l.source === 'object' ? l.source.id : l.source;
+        const tid = typeof l.target === 'object' ? l.target.id : l.target;
+        return visibleNodeIds.has(sid) && visibleNodeIds.has(tid);
+    });
+
+    if (interpretation) {
+        const nodeIdsWithLinks = new Set<string>();
+        finalLinks.forEach((l) => {
+            const sid = typeof l.source === 'object' ? l.source.id : l.source;
+            const tid = typeof l.target === 'object' ? l.target.id : l.target;
+            nodeIdsWithLinks.add(sid);
+            nodeIdsWithLinks.add(tid);
+        });
+        visibleNodes = visibleNodes.filter(
+            (n) => nodeIdsWithLinks.has(n.id) || n.group === 'thread' || n.group === 'report'
+        );
+        visibleNodeIds = new Set(visibleNodes.map((n) => n.id));
+        finalLinks = finalLinks.filter((l) => {
+            const sid = typeof l.source === 'object' ? l.source.id : l.source;
+            const tid = typeof l.target === 'object' ? l.target.id : l.target;
+            return visibleNodeIds.has(sid) && visibleNodeIds.has(tid);
+        });
+    }
+
+    return { nodes: visibleNodes, links: finalLinks };
+}
 
 interface Props {
     timelineTo: Date | null;
 }
 
 export default function KnowledgeGraphView({ timelineTo }: Props) {
-    const [rawGraphData, setRawGraphData] = useState<{ nodes: any[], links: any[] }>({ nodes: [], links: [] });
+    const [rawGraphData, setRawGraphData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+    const [graphMeta, setGraphMeta] = useState<KnowledgeGraphMeta | null>(null);
     const [lookbackDays, setLookbackDays] = useState(7);
     const [interpretation, setInterpretation] = useState(true);
     const [loading, setLoading] = useState(true);
     const fgRef = useRef<any>(null);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const graphFingerprintRef = useRef<string>('');
+    const pendingZoomToFitRef = useRef(false);
 
     useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        // 预取最近 30 天的数据（根据研判模式动态切换）
-        fetchKnowledgeGraph(30, interpretation).then(data => {
-            if (mounted) {
-                setRawGraphData(data);
-                setLoading(false);
-            }
-        }).catch(err => {
-            console.error("Failed to load knowledge graph", err);
-            if (mounted) setLoading(false);
-        });
-        return () => { mounted = false; };
-    }, [interpretation]);
+        const days = Math.max(1, Math.min(365, lookbackDays));
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            debounceRef.current = null;
+            let mounted = true;
+            setLoading(true);
+            fetchKnowledgeGraph(days, interpretation, timelineTo ?? undefined)
+                .then((data) => {
+                    if (mounted) {
+                        setRawGraphData({ nodes: data.nodes ?? [], links: data.links ?? [] });
+                        setGraphMeta(data.meta ?? null);
+                        setLoading(false);
+                    }
+                })
+                .catch((err) => {
+                    console.error('Failed to load knowledge graph', err);
+                    if (mounted) setLoading(false);
+                });
+        }, DEBOUNCE_MS);
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [interpretation, lookbackDays, timelineTo?.getTime() ?? 0]);
 
     const colorMap: Record<string, string> = useMemo(() => ({
         event: '#ff4444',
@@ -38,66 +135,36 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
         thread: '#bf00ff' // 紫色代表叙事聚合枢纽
     }), []);
 
-    // ── 时间轴联动核心逻辑 (引入滑动窗口衰减) ──────────────────────────────────
-    const displayData = useMemo(() => {
-        const now = timelineTo ? timelineTo.getTime() : Date.now();
-        const cutoffUpper = now;
-        const LOOKBACK_MS = lookbackDays * 24 * 60 * 60 * 1000;
-        const cutoffLower = cutoffUpper - LOOKBACK_MS;
+    const ws = graphMeta?.window_start ?? '';
+    const we = graphMeta?.window_end ?? '';
+    const hasBackendWindow = !!(ws && we);
 
-        if (!rawGraphData.nodes || rawGraphData.nodes.length === 0) return { nodes: [], links: [] };
+    const displayWindowed = useMemo(
+        () => buildKnowledgeGraphDisplay(rawGraphData, interpretation, { backendWindowed: true }),
+        [rawGraphData, interpretation, ws, we]
+    );
 
-        // 1. 预过滤核心动态节点 (基于时间的事件/新闻)
-        const dynamicNodes = rawGraphData.nodes.filter(node => {
-            // 地理节点和核心关键词不参与第一轮基于时间的“动态过滤”
-            if (node.group === 'location' || node.group === 'tag') return false;
-            // 叙事枢纽 (thread) 在 AI 模式下由关联的动态节点拉起，不直接决定窗口
-            if (node.group === 'thread') return false;
-            
-            // 解析节点时间 (使用 ISO 字符串)
-            if (!node.time) return true; // 若无时间属性则默认显示（如通用研判报告）
-            
-            const nodeTime = new Date(node.time).getTime();
-            if (isNaN(nodeTime)) return true;
+    const displayLegacy = useMemo(
+        () =>
+            buildKnowledgeGraphDisplay(rawGraphData, interpretation, {
+                backendWindowed: false,
+                timelineTo,
+                lookbackDays,
+            }),
+        [rawGraphData, interpretation, timelineTo, lookbackDays]
+    );
 
-            if (nodeTime > cutoffUpper) return false;
-            // 核心修复点：基于 lookbackDays 的滑动窗口过滤
-            if (nodeTime < cutoffLower) return false;
+    const displayData = hasBackendWindow ? displayWindowed : displayLegacy;
 
-            return true;
-        });
-
-        const dynamicNodeIds = new Set(dynamicNodes.map(n => n.id));
-
-        // 2. 识别此时活跃的连结线
-        const activeLinks = rawGraphData.links.filter(link => {
-            const sid = typeof link.source === 'object' ? link.source.id : link.source;
-            const tid = typeof link.target === 'object' ? link.target.id : link.target;
-            return dynamicNodeIds.has(sid) || dynamicNodeIds.has(tid);
-        });
-
-        // 3. 确定最终可见的节点集
-        const linkedStaticNodeIds = new Set<string>();
-        activeLinks.forEach(l => {
-            const sid = typeof l.source === 'object' ? l.source.id : l.source;
-            const tid = typeof l.target === 'object' ? l.target.id : l.target;
-            if (!dynamicNodeIds.has(sid)) linkedStaticNodeIds.add(sid);
-            if (!dynamicNodeIds.has(tid)) linkedStaticNodeIds.add(tid);
-        });
-
-        const visibleNodes = rawGraphData.nodes.filter(n => 
-            dynamicNodeIds.has(n.id) || linkedStaticNodeIds.has(n.id)
-        );
-
-        const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-        const finalLinks = activeLinks.filter(l => {
-            const sid = typeof l.source === 'object' ? l.source.id : l.source;
-            const tid = typeof l.target === 'object' ? l.target.id : l.target;
-            return visibleNodeIds.has(sid) && visibleNodeIds.has(tid);
-        });
-
-        return { nodes: visibleNodes, links: finalLinks };
-    }, [rawGraphData, timelineTo, lookbackDays]);
+    useEffect(() => {
+        const nodes = displayData.nodes;
+        const links = displayData.links;
+        const fp = `${nodes.length}|${links.length}|${[...nodes].map((n) => String(n.id)).sort().join(',')}`;
+        if (fp !== graphFingerprintRef.current) {
+            graphFingerprintRef.current = fp;
+            pendingZoomToFitRef.current = true;
+        }
+    }, [displayData]);
 
     return (
         <div style={{ width: '100%', height: '100%', background: '#0a0e14', position: 'relative' }}>
@@ -105,7 +172,18 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                 ref={fgRef}
                 graphData={displayData}
                 nodeAutoColorBy="group"
-                onEngineStop={() => fgRef.current?.zoomToFit(400, 50)}
+                onEngineStop={() => {
+                    if (loading) return;
+                    if (!pendingZoomToFitRef.current) return;
+                    pendingZoomToFitRef.current = false;
+                    requestAnimationFrame(() => {
+                        try {
+                            fgRef.current?.zoomToFit(400, 50);
+                        } catch {
+                            /* ignore */
+                        }
+                    });
+                }}
                 nodeLabel={(node: any) => `
                   <div style="background: rgba(0,0,0,0.85); color: #fff; padding: 10px; border: 1px solid #1e2d40; border-radius: 4px; font-size: 12px; max-width: 320px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
@@ -157,7 +235,10 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                 linkDirectionalArrowLength={(link: any) => link.type === 'causal' ? 4 : 2}
                 linkDirectionalArrowRelPos={1}
                 linkCurvature={(link: any) => link.curvature || 0}
-                linkColor={(link: any) => link.dashed ? 'rgba(30, 45, 64, 0.3)' : (link.color || '#1e2d40')}
+                linkColor={(link: any) => {
+                    if (!interpretation && link.dashed) return 'rgba(255,255,255,0.26)';
+                    return link.color ? link.color : (link.dashed ? 'rgba(30, 45, 64, 0.3)' : '#1e2d40');
+                }}
                 linkLineDash={(link: any) => link.dashed ? [2, 2] : null}
                 linkCanvasObjectMode={() => 'after'}
                 linkCanvasObject={(link: any, ctx, globalScale) => {
@@ -200,7 +281,8 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                     background: 'rgba(0,0,0,0.7)', padding: '20px', borderRadius: '8px', border: '1px solid #ff444444'
                 }}>
                     ⚠️ 当前窗口无匹配情报<br/>
-                    <span style={{ fontSize: '11px', color: '#8b9ab0', marginTop: '5px', display: 'block' }}>请尝试调整底部时间轴或左上角追溯深度</span>
+                    <span style={{ fontSize: '11px', color: '#8b9ab0', marginTop: '5px', display: 'block' }}>请尝试调整底部时间轴（锚点）或左上角窗口宽度（天）</span>
+                    <span style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', display: 'block' }}>超出数据覆盖范围部分无数据</span>
                 </div>
             )}
 
@@ -214,9 +296,11 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 minWidth: '280px'
             }}>
-                <div style={{ color: '#00d4ff', marginBottom: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ color: '#00d4ff', marginBottom: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>[ OSINT 态势导图 ]</span>
-                    <span style={{ fontSize: '10px', opacity: 0.6 }}>BOSHI V1.3</span>
+                    <span style={{ fontSize: '10px', opacity: 0.6 }}>
+                        {timelineTo ? '锚点·时间轴' : '锚点·实时'}
+                    </span>
                 </div>
 
                 {/* AI Interpretation Toggle */}
@@ -231,7 +315,7 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                     justifyContent: 'space-between'
                 }}>
                     <span style={{ fontSize: '11px', fontWeight: 600, color: interpretation ? '#00d4ff' : '#8b9ab0' }}>
-                        {interpretation ? 'AI 研判模式: 逻辑激活' : 'AI 研判模式: 原始情报'}
+                        {interpretation ? 'AI 研判模式（聚合）' : '原始情报模式（纷杂）'}
                     </span>
                     <div 
                         onClick={() => setInterpretation(!interpretation)}
@@ -260,10 +344,10 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                     </div>
                 </div>
                 
-                {/* Local Lookback Slider */}
+                {/* 窗口宽度（天）— 与底部时间轴锚点共同决定查询窗口 */}
                 <div style={{ marginBottom: '15px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '10px' }}>
-                        <span>历史追溯深度</span>
+                        <span>窗口宽度（天）</span>
                         <span style={{ color: '#00d4ff' }}>{lookbackDays} 天</span>
                     </div>
                     <input 
@@ -274,6 +358,11 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                         onChange={(e) => setLookbackDays(parseInt(e.target.value))}
                         style={{ width: '100%', cursor: 'pointer', accentColor: '#00d4ff' }}
                     />
+                    {graphMeta && (
+                        <div style={{ marginTop: '8px', fontSize: '9px', color: '#556677' }}>
+                            当前窗口：{new Date(graphMeta.window_start).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} ~ {new Date(graphMeta.window_end).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
@@ -300,12 +389,20 @@ export default function KnowledgeGraphView({ timelineTo }: Props) {
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: colorMap.tag }} />
                         <span>核心关键词</span>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: colorMap.location }} />
+                        <span>地理实体</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: colorMap.report }} />
+                        <span>分析研判</span>
+                    </div>
                 </div>
 
                 <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #ffffff11', fontSize: '9px', color: '#445566', fontStyle: 'italic' }}>
                     {interpretation 
                         ? '* 紫色枢纽自动聚合逻辑线索，琥珀色箭头代表因果推演。'
-                        : '* 虚线连接代表地理或主题上的实地关联(隐性关联)。'
+                        : '* 原始情报模式：虚线为地理/主题隐性关联，呈现纷杂态势。'
                     }
                 </div>
             </div>

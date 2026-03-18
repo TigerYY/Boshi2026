@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from models import init_db, AsyncSessionLocal
-from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router, chat_router, graph_router
+from api import news_router, events_router, units_router, zones_router, analysis_router, control_router, live_router, youtube_router, chat_router, graph_router, timeline_router
 from scheduler import scheduler, ws_manager, setup_scheduler
 
 # Define internal tasks that just delegate to scheduler logic
@@ -93,6 +93,7 @@ app.include_router(live_router)
 app.include_router(youtube_router)
 app.include_router(chat_router)
 app.include_router(graph_router)
+app.include_router(timeline_router)
 
 @app.get("/")
 async def root():

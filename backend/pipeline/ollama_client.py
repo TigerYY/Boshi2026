@@ -17,7 +17,8 @@ import logging
 import base64
 import re
 import requests
-from typing import Optional
+from typing import Optional, Any, Dict
+import time
 
 import os
 
@@ -428,55 +429,191 @@ async def generate_daily_summary(
         }
 
 
-async def ask_osint_question(question: str, context: str) -> str:
-    """
-    RAG specialized endpoint for answering user OSINT queries.
-    Passes the custom question and the recent DB timeline to Qwen.
-    """
-    sys_prompt = (
-        "你身处军情战略指挥中心，是为高级指挥官提供直接战况判读的 AI 军情参谋。\n\n"
-        "【核心纪律】（绝对服从）\n"
-        "1. 绝对禁止输出任何内心独白、分析过程、或对用户指令的复述（如“用户要求...”、“我需要根据...”、“首先...”、“关键点”）。\n"
-        "2. 绝对禁止简单罗列新闻条目或机械翻译时间线。你必须寻找时间线背后的逻辑，进行情报级别的深度合成加工。\n"
-        "3. 第一句话必须是硬核的【核心态势判读】。\n\n"
-        "【强制输出模板】\n"
-        "**核心态势**：<一句话极简高密度判读>\n\n"
-        "**深度研判**：\n"
-        "<一段连贯的情报合成分析，指出事件之间的战略因果与未来发展趋势。如果有金融数据，必须结合能源或加密市场的规避风险情绪进行联动分析。绝对不能是条目罗列，必须是一个军事分析报告段落！>\n\n"
-        "（说明：必须严格按照上述模板输出，不要添加任何额外的问候、思考标签或后缀。使用冷峻果断的军事术语，通篇必须是简体中文。）\n\n"
-        "【当前已解密战场数据（包含金融避险锚点）】\n"
-        f"{context}"
+def _strip_osint_think_leakage(text: str) -> str:
+    if not text:
+        return ""
+    t = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+    t = re.sub(r"```(?:json)?\s*[\s\S]*?```", "", t)
+    return t.strip()
+
+
+def _osint_meta_noise(s: str) -> bool:
+    if len(s) < 20:
+        return True
+    bad = (
+        "用户要求", "我需要根据", "作为AI", "以下是", "输出JSON", "严格按照",
+        "长官提问", "根据提供的数据", "我将", "首先，", "综上所述",
     )
-    
-    messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": f"长官提问：{question}"}
-    ]
-    
+    return any(b in s[:120] for b in bad)
+
+
+def _osint_best_paragraph(text: str) -> str:
+    text = _strip_osint_think_leakage(text)
+    paras = [p.strip() for p in re.split(r"\n\n+", text) if p.strip()]
+    candidates = [p for p in paras if not _osint_meta_noise(p) and len(p) >= 50]
+    if candidates:
+        return max(candidates, key=len)
+    if paras:
+        return max(paras, key=len)
+    return text[:1200] if text else ""
+
+
+def _parse_osint_json(raw: str) -> Optional[dict]:
+    raw = _strip_osint_think_leakage(raw).strip()
+    if not raw:
+        return None
     try:
-        import re
-        # For OSINT queries, we want deep analysis. Lower temp to prevent rambling
-        logger.info(f"Dispatching OSINT query: {question[:30]}...")
-        res = await _chat(messages, temperature=0.1, num_predict=1536)
-        
-        reply = res["content"].strip()
-        
-        # 暴力移除回复正文中可能泄露的 <think>...</think> 标签残留
-        reply = re.sub(r'<think>.*?</think>', '', reply, flags=re.DOTALL).strip()
-        
-        # Fallback: if the model wrote its entire response in 'thinking'
-        if not reply and res["thinking"]:
-            # Get the last paragraph of thinking to avoid the verbose initial thoughts
-            thinking_text = re.sub(r'<think>.*?</think>', '', res["thinking"], flags=re.DOTALL).strip()
-            paragraphs = [p.strip() for p in (thinking_text or res["thinking"]).split('\n\n') if p.strip()]
-            reply = paragraphs[-1] if paragraphs else res["thinking"].strip()
-            
-        if not reply:
-            return "分析引擎因线路不通畅暂未返回实质性判决，请稍后再次轮询。"
-        return reply
+        obj = _parse_json_from_response(raw)
+        if not isinstance(obj, dict):
+            return None
+        ca = (obj.get("core_assessment") or obj.get("core") or "").strip()
+        an = (obj.get("analysis") or obj.get("深度研判") or "").strip()
+        if ca or an:
+            return {"core_assessment": ca, "analysis": an}
     except Exception as e:
-        logger.error(f"ask_osint_question OSINT Query Error: {e}")
-        return "本地情报推理模块暂时阻断连接，无法合成推演简报。"
+        logger.debug("OSINT JSON parse failed: %s", e)
+    return None
+
+
+def _parse_osint_template(text: str) -> Optional[dict]:
+    t = _strip_osint_think_leakage(text)
+    if not t:
+        return None
+    core = ""
+    analysis = ""
+    m_core = re.search(
+        r"\*{0,2}核心态势\*{0,2}[：:]\s*(.+?)(?=\n\n|\*{0,2}深度研判|$)",
+        t,
+        re.DOTALL,
+    )
+    if m_core:
+        core = re.sub(r"\s+", " ", m_core.group(1).strip())
+    m_an = re.search(
+        r"\*{0,2}深度研判\*{0,2}[：:]?\s*([\s\S]+?)(?=\n\*{0,2}[^*]+\*{0,2}[：:]|$)",
+        t,
+    )
+    if m_an:
+        analysis = m_an.group(1).strip()
+    if core or analysis:
+        return {"core_assessment": core, "analysis": analysis}
+    return None
+
+
+def _build_osint_answer(core: str, analysis: str) -> str:
+    parts = []
+    if core:
+        parts.append(f"**核心态势**：{core}")
+    if analysis:
+        parts.append(f"**深度研判**：\n{analysis}")
+    return "\n\n".join(parts) if parts else ""
+
+
+async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
+    """
+    RAG OSINT：三层解析（JSON / 模板 / 段落兜底），返回结构化结果。
+    """
+    sys_json = (
+        "你是军情战略指挥中心的 AI 参谋。仅依据下方【战场数据】回答长官提问。\n\n"
+        "纪律：禁止内心独白、禁止复述用户指令、禁止罗列新闻条目；必须做情报合成。\n"
+        "若有金融数据，analysis 中需简要联动能源/避险情绪。\n\n"
+        "【战场数据】\n"
+        f"{context}\n\n"
+        "输出要求：只输出一个 JSON 对象（不要 markdown），键名固定：\n"
+        '{"core_assessment":"<一句话核心态势>","analysis":"<一段连贯深度研判，简体中文>"}\n'
+    )
+    user_msg = f"长官提问：{question.strip()}"
+    messages = [
+        {"role": "system", "content": sys_json},
+        {"role": "user", "content": user_msg},
+    ]
+    t0 = time.perf_counter()
+    parse_mode = "fallback"
+    fallback_reason: Optional[str] = None
+    core_assessment = ""
+    analysis = ""
+
+    try:
+        logger.info("OSINT query start: %s...", question[:40])
+        res = await _chat(
+            messages,
+            temperature=0.15,
+            num_predict=1400,
+            timeout=270,
+            format="json",
+        )
+        raw = (res.get("content") or "").strip() or (res.get("thinking") or "").strip()
+        parsed = _parse_osint_json(raw)
+        if parsed:
+            core_assessment = parsed["core_assessment"]
+            analysis = parsed["analysis"]
+            parse_mode = "json"
+        if not core_assessment and not analysis:
+            parsed2 = _parse_osint_template(res.get("content") or "")
+            if parsed2:
+                core_assessment = parsed2["core_assessment"]
+                analysis = parsed2["analysis"]
+                parse_mode = "template"
+        if not core_assessment and not analysis:
+            combined = _strip_osint_think_leakage(
+                (res.get("content") or "") + "\n\n" + (res.get("thinking") or "")
+            )
+            para = _osint_best_paragraph(combined)
+            if para:
+                analysis = para
+                parse_mode = "fallback"
+                fallback_reason = "模型未返回合法 JSON，已采用正文最优段落作为研判摘要"
+            else:
+                fallback_reason = "模型返回为空"
+        if not core_assessment and analysis:
+            first = analysis.split("。")[0].strip()
+            core_assessment = (first + "。") if first else analysis[:80] + "…"
+            if len(core_assessment) > 200:
+                core_assessment = analysis[:100] + "…"
+
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        status = "ok" if parse_mode != "fallback" else "degraded"
+        if parse_mode == "fallback" and not analysis:
+            status = "degraded"
+            analysis = "分析引擎未返回可解析内容，请稍后重试或缩短提问范围。"
+
+        answer = _build_osint_answer(core_assessment, analysis)
+        if not answer:
+            answer = analysis or "暂无法生成研判，请稍后重试。"
+            status = "degraded"
+            fallback_reason = fallback_reason or "empty_output"
+
+        logger.info(
+            "OSINT query done parse_mode=%s status=%s latency_ms=%s reason=%s",
+            parse_mode,
+            status,
+            latency_ms,
+            fallback_reason,
+        )
+        return {
+            "status": status,
+            "core_assessment": core_assessment,
+            "analysis": analysis,
+            "answer": answer,
+            "fallback_reason": fallback_reason,
+            "parse_mode": parse_mode,
+            "model": ANALYSIS_MODEL,
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        logger.error("ask_osint_question error: %s", e, exc_info=True)
+        return {
+            "status": "degraded",
+            "core_assessment": "",
+            "analysis": "",
+            "answer": "本地情报推理模块连接异常，无法完成合成研判。请确认 Ollama 服务可用后重试。",
+            "fallback_reason": str(e)[:200],
+            "parse_mode": "error",
+            "model": ANALYSIS_MODEL,
+            "latency_ms": latency_ms,
+        }
+
+
 async def health_check() -> bool:
     try:
         resp = await asyncio.to_thread(requests.get, f"{OLLAMA_BASE}/api/tags", timeout=5)

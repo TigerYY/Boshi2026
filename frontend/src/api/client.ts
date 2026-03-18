@@ -8,6 +8,8 @@ import type {
 const BASE = '';
 
 const http = axios.create({ baseURL: BASE, timeout: 120000 });
+/** OSINT 研判可能超过 120s，独立长超时 */
+const osintHttp = axios.create({ baseURL: BASE, timeout: 240000 });
 
 // ── News ──────────────────────────────────────────────────────────────────
 export const fetchNews = (params?: {
@@ -24,6 +26,10 @@ export const fetchEvents = (params?: {
 
 export const fetchTimelineRange = () =>
   http.get<{ start: string; end: string; first_event: string }>('/api/events/range').then(r => r.data);
+
+export type TimelineDensityDay = { date: string; news_count: number; event_count: number; event_severity_sum: number };
+export const fetchTimelineDensity = (params: { since: string; until: string }) =>
+  http.get<{ days: TimelineDensityDay[] }>('/api/timeline/density', { params }).then(r => r.data);
 
 export const fetchEventsGeoJson = (params?: { since?: string; until?: string }) =>
   http.get<GeoJsonFeatureCollection>('/api/events/geojson', { params }).then(r => r.data);
@@ -58,11 +64,54 @@ export const fetchLatestFinance = () =>
 export const fetchOllamaHealth = () =>
   http.get<{ status: string; model: string }>('/api/analysis/ollama/health').then(r => r.data);
 
-export const queryOsintChat = (message: string) =>
-  http.post<{ reply: string; status: string }>('/api/chat/query', { message }).then(r => r.data);
+export type OsintCitation = { id: number; type: string; time: string; title: string };
+export type OsintChatMeta = {
+  model: string;
+  latency_ms: number;
+  context_counts: { news: number; events: number; finance: number };
+  fallback_reason?: string | null;
+  parse_mode?: string | null;
+  request_id: string;
+};
+export type OsintChatResult = {
+  reply: string;
+  status: string;
+  answer: string;
+  core_assessment: string;
+  analysis: string;
+  citations: OsintCitation[];
+  meta: OsintChatMeta;
+};
 
-export const fetchKnowledgeGraph = (days = 7, interpretation = true) =>
-  http.get<{ nodes: any[]; links: any[] }>('/api/graph/knowledge', { params: { days, interpretation } }).then(r => r.data);
+export const queryOsintChat = (message: string, lookbackDays = 7) =>
+  osintHttp
+    .post<OsintChatResult>('/api/chat/query', {
+      message,
+      lookback_days: Math.min(30, Math.max(1, Math.round(lookbackDays))),
+    })
+    .then(r => r.data);
+
+export type KnowledgeGraphMeta = {
+  window_start: string;
+  window_end: string;
+  data_coverage_start: string;
+  data_coverage_end: string;
+};
+
+export const fetchKnowledgeGraph = (
+  days: number = 7,
+  interpretation: boolean = true,
+  until?: Date | null
+) => {
+  const params: Record<string, string | number | boolean> = {
+    days: Math.max(1, Math.min(365, Math.round(days))),
+    interpretation: Boolean(interpretation),
+  };
+  if (until) params.until = until.toISOString();
+  return http
+    .get<{ nodes: any[]; links: any[]; meta?: KnowledgeGraphMeta }>('/api/graph/knowledge', { params })
+    .then(r => r.data);
+};
 
 // ── Control ───────────────────────────────────────────────────────────────
 export const fetchSources = () =>

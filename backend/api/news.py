@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 @router.get("")
 async def list_news(
     page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=3000),
+    size: int = Query(20, ge=1, le=10000),
     category: Optional[str] = None,
     source_tier: Optional[int] = None,
     breaking_only: bool = False,

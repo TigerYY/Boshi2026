@@ -1,3 +1,8 @@
+"""
+历史数据回补：对关键时段补采事件与日报，减轻时间轴空洞。
+运行方式（在 backend 目录下）：python backfill_data.py
+可修改 target_dates 与 events/reports 以覆盖更多日期。
+"""
 import asyncio
 from datetime import datetime, timezone
 from sqlalchemy import select

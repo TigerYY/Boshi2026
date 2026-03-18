@@ -77,7 +77,7 @@ async def list_events(
 
     if filters:
         stmt = stmt.where(and_(*filters))
-    stmt = stmt.order_by(MilitaryEvent.occurred_at.desc()).limit(2000)
+    stmt = stmt.order_by(MilitaryEvent.occurred_at.desc()).limit(5000)
     result = await db.execute(stmt)
     items = result.scalars().all()
     return [_serialize_event(e) for e in items]
