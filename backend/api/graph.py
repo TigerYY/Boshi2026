@@ -4,6 +4,7 @@ from sqlalchemy import select, asc
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import logging
+import os
 
 from models.database import get_db
 from models.schemas import NewsItem, MilitaryEvent, AnalysisReport, NarrativeThread, CausalLink
@@ -160,6 +161,7 @@ async def get_knowledge_graph(
 
     # ── [ 分支 A: AI 研判模式 ] ──────────────────────────────────────────────
     if interpretation:
+        max_orphans = max(0, min(200, int(os.getenv("GRAPH_INTERP_MAX_ORPHANS", "25"))))
         # 获取高阶合成数据
         reports_result = await db.execute(select(AnalysisReport).where(
             AnalysisReport.generated_at >= window_start,
@@ -205,6 +207,46 @@ async def get_knowledge_graph(
             best = min(reports, key=lambda r: abs((_report_at(r) - t).total_seconds()))
             return f"report_{best.id}"
 
+        # 0) 预扫描：提取线索项、因果项和高影响孤儿项，避免 "纳入研判" 星爆
+        thread_linked_ids: set[str] = set()
+        orphan_candidates: list[tuple[float, str]] = []
+        for e in events:
+            eid = f"event_{e.id}"
+            if e.thread_id:
+                thread_linked_ids.add(eid)
+            else:
+                orphan_candidates.append((float(e.impact_score or 0.0), eid))
+        for n in news_items:
+            nid = f"news_{n.id}"
+            if n.thread_id:
+                thread_linked_ids.add(nid)
+            else:
+                orphan_candidates.append((float(n.impact_score or 0.0), nid))
+
+        causal_pairs: list[tuple[str, str, str]] = []
+        causal_linked_ids: set[str] = set()
+        try:
+            cl_res = await db.execute(select(CausalLink).order_by(asc(CausalLink.id)).limit(300))
+            for cl in cl_res.scalars().all():
+                s, t = f"{cl.source_type}_{cl.source_id}", f"{cl.target_type}_{cl.target_id}"
+                relation = RELATION_ZH.get(cl.relation_type, cl.relation_type)
+                causal_pairs.append((s, t, relation))
+                causal_linked_ids.add(s)
+                causal_linked_ids.add(t)
+        except Exception as e:
+            logger.warning("Causal links fetch failed: %s", e)
+
+        baseline_keep_ids = thread_linked_ids | causal_linked_ids
+        orphan_candidates.sort(key=lambda x: x[0], reverse=True)
+        selected_orphan_ids: set[str] = set()
+        for _, iid in orphan_candidates:
+            if iid in baseline_keep_ids:
+                continue
+            selected_orphan_ids.add(iid)
+            if len(selected_orphan_ids) >= max_orphans:
+                break
+        keep_item_ids = baseline_keep_ids | selected_orphan_ids
+
         # 1. 研判报告节点（中心锚点）
         for r in reports:
             rid = f"report_{r.id}"
@@ -240,6 +282,8 @@ async def get_knowledge_graph(
         # 3. 军事事件
         for e in events:
             eid = f"event_{e.id}"
+            if eid not in keep_item_ids:
+                continue
             add_node(eid, e.title, "event", {
                 "desc": e.description,
                 "val": 3 + e.impact_score,
@@ -247,7 +291,7 @@ async def get_knowledge_graph(
             })
             if e.thread_id:
                 add_link(eid, f"thread_{e.thread_id}", "属于")
-            else:
+            elif eid in selected_orphan_ids:
                 rid = _nearest_report_id(e.occurred_at)
                 if rid and rid in node_ids:
                     add_link(eid, rid, "纳入研判")
@@ -255,6 +299,8 @@ async def get_knowledge_graph(
         # 4. 研判新闻 (AI 提炼版)
         for n in news_items:
             nid = f"news_{n.id}"
+            if nid not in keep_item_ids:
+                continue
             add_node(nid, n.summary_zh or n.title, "news", {
                 "desc": n.summary_zh,
                 "val": 2 + n.impact_score,
@@ -262,21 +308,15 @@ async def get_knowledge_graph(
             })
             if n.thread_id:
                 add_link(nid, f"thread_{n.thread_id}", "关联线索")
-            else:
+            elif nid in selected_orphan_ids:
                 rid = _nearest_report_id(n.published_at)
                 if rid and rid in node_ids:
                     add_link(nid, rid, "纳入研判")
 
-        # 5. 因果链路 (研判模式专有)：按节点是否在窗口内过滤，不按 created_at，保证历史窗口因果线不丢
-        try:
-            cl_res = await db.execute(select(CausalLink).order_by(asc(CausalLink.id)).limit(300))
-            for cl in cl_res.scalars().all():
-                s, t = f"{cl.source_type}_{cl.source_id}", f"{cl.target_type}_{cl.target_id}"
-                if s in node_ids and t in node_ids:
-                    add_link(s, t, RELATION_ZH.get(cl.relation_type, cl.relation_type),
-                             {"type": "causal", "color": "#ffaa00", "curvature": 0.2})
-        except Exception as e:
-            logger.warning("Causal links fetch failed: %s", e)
+        # 5. 因果链路 (研判模式专有)：仅连接当前保留节点
+        for s, t, relation in causal_pairs:
+            if s in node_ids and t in node_ids:
+                add_link(s, t, relation, {"type": "causal", "color": "#ffaa00", "curvature": 0.2})
 
     # ── [ 分支 B: 原始情报模式 ] ───────── (展现地理与隐性关联的熵值结构) ───────────
     else:

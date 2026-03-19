@@ -292,8 +292,12 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     if (!mapRef.current) return;
     try {
       setLoading(true);
-      const params: { since?: string } = {};
-      if (timelineFrom) params.since = timelineFrom.toISOString();
+      const params: { since?: string; until?: string } = {};
+      // 与时间轴窗口一致：开启时同时传 since/until，避免混入锚点之后的事件再由前端隐藏
+      if (timelineActive && timelineFrom && timelineTo) {
+        params.since = timelineFrom.toISOString();
+        params.until = timelineTo.toISOString();
+      }
       const [eventsGeo, unitsGeo, zonesGeo] = await Promise.all([fetchEventsGeoJson(params), fetchUnitsGeoJson(), fetchZonesGeoJson()]);
       rawEventsRef.current = eventsGeo;
       rawUnitsRef.current = unitsGeo;
@@ -304,7 +308,7 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     } finally {
       setLoading(false);
     }
-  }, [timelineFrom]);
+  }, [timelineActive, timelineFrom, timelineTo]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -400,9 +404,13 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
     });
 
     mapRef.current = map;
-    fetchRawData();
     return () => { map.remove(); mapRef.current = null; };
   }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    void fetchRawData();
+  }, [fetchRawData]);
 
   const buildMapLayers = useCallback(() => {
     if (!mapRef.current) return;
@@ -476,16 +484,35 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
   useEffect(() => { buildMapLayers(); }, [buildMapLayers]);
 
   useEffect(() => {
-    const tTo = timelineTo?.getTime() ?? Date.now();
-    const t3d = tTo - 3 * 24 * 3600 * 1000;
-    const t14d = tTo - 14 * 24 * 3600 * 1000;
+    const windowStartMs =
+      timelineActive && timelineFrom ? timelineFrom.getTime() : Number.NEGATIVE_INFINITY;
+    const windowEndMs =
+      timelineActive && timelineTo ? timelineTo.getTime() : Number.POSITIVE_INFINITY;
+    const THREE_D_MS = 3 * 24 * 3600 * 1000;
 
     for (const { marker, time } of eventMarkersRef.current) {
-      if (!timelineActive) { marker.setOpacity(1); marker.getElement()?.style.setProperty('display', 'block'); continue; }
-      if (time > tTo || time < t14d) { marker.setOpacity(0); marker.getElement()?.style.setProperty('display', 'none'); }
-      else {
-        const opacity = time >= t3d ? 1 : 0.15 + ((time - t14d) / (t3d - t14d)) * 0.85;
-        marker.setOpacity(opacity);
+      if (!timelineActive) {
+        marker.setOpacity(1);
+        marker.getElement()?.style.setProperty('display', 'block');
+        continue;
+      }
+      if (time > windowEndMs || time < windowStartMs) {
+        marker.setOpacity(0);
+        marker.getElement()?.style.setProperty('display', 'none');
+      } else {
+        const span = windowEndMs - windowStartMs;
+        const recentMs = Math.min(THREE_D_MS, Math.max(span * 0.35, 1));
+        const recentStart = windowEndMs - recentMs;
+        if (recentStart <= windowStartMs) {
+          marker.setOpacity(1);
+        } else if (time >= recentStart) {
+          marker.setOpacity(1);
+        } else {
+          const denom = recentStart - windowStartMs;
+          const opacity =
+            denom > 0 ? 0.15 + ((time - windowStartMs) / denom) * 0.85 : 1;
+          marker.setOpacity(opacity);
+        }
         marker.getElement()?.style.setProperty('display', 'block');
       }
     }
@@ -496,7 +523,8 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
         .filter(f => {
           const props = f.properties as any;
           const t = new Date(props.occurred_at).getTime();
-          return timelineActive ? (t <= tTo && t >= t14d) : true;
+          if (!timelineActive) return true;
+          return t >= windowStartMs && t <= windowEndMs;
         })
         .map(f => {
           const coords = f.geometry.coordinates as [number, number];
@@ -507,7 +535,15 @@ export default function WarfareMap({ layers, onToggleLayer, timelineFrom, timeli
       // 同时调整热热力图半径，使其随缩放变化
       (hmLayer as any).setOptions({ radius: Math.max(10, 25 * Math.pow(1.2, currentZoom - 5)) });
     }
-  }, [timelineTo, timelineActive, dataVersion, layers.events, layers.heatmap, currentZoom]);
+  }, [
+    timelineFrom,
+    timelineTo,
+    timelineActive,
+    dataVersion,
+    layers.events,
+    layers.heatmap,
+    currentZoom,
+  ]);
 
   const updateLiveTracking = useCallback(async () => {
     if (!mapRef.current) return;

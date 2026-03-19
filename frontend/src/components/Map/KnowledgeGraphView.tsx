@@ -132,13 +132,22 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
     const requestSeqRef = useRef(0);
     const hasLoadedOnceRef = useRef(false);
     const lastAppliedSigRef = useRef('');
+    const lastDisplaySigRef = useRef('');
+    const lastDisplayDataRef = useRef<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
     const lastZoomBucketRef = useRef<number>(-999999);
     const forceZoomNextFetchRef = useRef(true);
     const pendingZoomToFitRef = useRef(false);
+    const nonLiveAnchorRef = useRef<Date>(new Date());
 
-    const anchorDate = timelineTo ?? new Date();
+    useEffect(() => {
+        if (timelineTo) return;
+        nonLiveAnchorRef.current = new Date();
+    }, [timelineTo, interpretation, lookbackDays]);
+
+    const anchorDate = timelineTo ?? nonLiveAnchorRef.current;
     const untilBucketKey = Math.floor(anchorDate.getTime() / UNTIL_BUCKET_MS);
-    const timelineFetchDep = timelineLive ? untilBucketKey : anchorDate.getTime();
+    const nonLiveBucketKey = Math.floor(anchorDate.getTime() / UNTIL_BUCKET_MS);
+    const timelineFetchDep = timelineLive ? untilBucketKey : nonLiveBucketKey;
 
     const fetchParamsRef = useRef({
         interpretation,
@@ -204,8 +213,6 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
                         forceZoomNextFetchRef.current = false;
                     } else if (isFirstLoad && nodes.length > 0) {
                         shouldZoom = true;
-                    } else if (!live) {
-                        shouldZoom = nodes.length > 0;
                     } else if (Math.abs(bucket - lastZoomBucketRef.current) >= ZOOM_LIVE_BUCKET_DELTA) {
                         shouldZoom = nodes.length > 0;
                     }
@@ -276,6 +283,17 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
     );
 
     const displayData = hasBackendWindow ? displayWindowed : displayLegacy;
+    const displaySig = useMemo(
+        () => graphPayloadSignature(displayData.nodes ?? [], displayData.links ?? []),
+        [displayData]
+    );
+    const stableDisplayData = useMemo(() => {
+        if (displaySig !== lastDisplaySigRef.current) {
+            lastDisplaySigRef.current = displaySig;
+            lastDisplayDataRef.current = displayData;
+        }
+        return lastDisplayDataRef.current;
+    }, [displayData, displaySig]);
 
     const untilKeyLabel = `${untilBucketKey}`;
 
@@ -283,8 +301,11 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
         <div style={{ width: '100%', height: '100%', background: '#0a0e14', position: 'relative' }}>
             <ForceGraph2D
                 ref={fgRef}
-                graphData={displayData}
+                graphData={stableDisplayData}
                 nodeAutoColorBy="group"
+                cooldownTicks={200}
+                d3AlphaDecay={0.06}
+                d3VelocityDecay={0.3}
                 onEngineStop={() => {
                     if (loading) return;
                     if (!pendingZoomToFitRef.current) return;
@@ -421,7 +442,7 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
                 </div>
             )}
 
-            {!loading && displayData.nodes.length === 0 && (
+            {!loading && stableDisplayData.nodes.length === 0 && (
                 <div
                     style={{
                         position: 'absolute',
