@@ -7,6 +7,14 @@ const DEBOUNCE_MS = 400;
 const UNTIL_BUCKET_MS = 5 * 60 * 1000;
 /** 实时模式下锚点桶跨越 ≥ 该值（×5min）才再次 zoomToFit */
 const ZOOM_LIVE_BUCKET_DELTA = 12;
+const REPORT_FAIL_PATTERN = /(分析生成失败，请稍后重试。?|研判暂不可用|暂无法生成研判)/;
+
+function sanitizeGraphText(text: unknown, group?: string): string {
+    const s = String(text ?? '').trim();
+    if (!s) return '';
+    if (group === 'report' && REPORT_FAIL_PATTERN.test(s)) return '研判暂不可用';
+    return s;
+}
 
 function graphPayloadSignature(nodes: any[], links: any[]): string {
     const nodeIds = nodes.map((n) => String(n.id)).sort().join('\0');
@@ -174,7 +182,7 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
             if (isFirstLoad) setLoading(true);
             else setBackgroundRefreshing(true);
 
-            fetchKnowledgeGraph(days, interp, until, controller.signal)
+            fetchKnowledgeGraph(days, interp, false, until, controller.signal)
                 .then((data) => {
                     if (seq !== requestSeqRef.current) return;
                     const nodes = data.nodes ?? [];
@@ -295,13 +303,13 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
                         <strong style="color: ${colorMap[node.group] || '#00d4ff'}; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">[ ${node.group_zh || node.group} ]</strong>
                         ${node.time ? `<span style="color: #556677; font-size: 10px;">${new Date(node.time).toLocaleDateString()}</span>` : ''}
                     </div>
-                    <div style="color: #e0e0e0; font-weight: 600; line-height: 1.4; border-left: 2px solid ${colorMap[node.group] || '#00d4ff'}; padding-left: 8px;">${node.title || node.label}</div>
-                    ${node.desc ? `<div style="margin-top: 8px; color: #8b9ab0; font-size: 11px; font-style: italic;">"${node.desc}"</div>` : ''}
+                    <div style="color: #e0e0e0; font-weight: 600; line-height: 1.4; border-left: 2px solid ${colorMap[node.group] || '#00d4ff'}; padding-left: 8px;">${sanitizeGraphText(node.title || node.label, node.group)}</div>
+                    ${sanitizeGraphText(node.desc, node.group) ? `<div style="margin-top: 8px; color: #8b9ab0; font-size: 11px; font-style: italic;">"${sanitizeGraphText(node.desc, node.group)}"</div>` : ''}
                     ${node.impact_score ? `<div style="margin-top: 8px; font-size: 10px; color: #ffcc00;">影响力权重: ${node.impact_score}</div>` : ''}
                   </div>
                 `}
                 nodeCanvasObject={(node, ctx, globalScale) => {
-                    const label = node.label || '';
+                    const label = sanitizeGraphText(node.label || '', (node as any).group);
                     const fontSize = Math.max(12 / globalScale, 2);
 
                     ctx.font = `${fontSize}px Sans-Serif`;
@@ -583,6 +591,14 @@ export default function KnowledgeGraphView({ timelineTo, timelineLive = false }:
                                 hour: '2-digit',
                                 minute: '2-digit',
                             })}
+                            {interpretation ? (
+                                <div style={{ marginTop: '4px' }}>
+                                    研判报告：有效 {graphMeta.report_valid ?? 0} / 总计 {graphMeta.report_total ?? 0}
+                                    {(graphMeta.report_filtered_failed ?? 0) > 0
+                                        ? `（已过滤失败 ${graphMeta.report_filtered_failed}）`
+                                        : ''}
+                                </div>
+                            ) : null}
                         </div>
                     )}
                 </div>

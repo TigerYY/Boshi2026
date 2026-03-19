@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { fetchSources, updateSource, triggerRefresh, fetchSystemStatus, fetchOllamaHealth } from '../../api/client';
+import { fetchSources, updateSource, triggerRefresh, fetchSystemStatus, fetchOllamaHealth, type OllamaHealthResponse } from '../../api/client';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import type { ScraperSource, SystemStatus } from '../../api/types';
 import type { RefreshPhase } from '../../App';
@@ -32,6 +32,7 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
   const [sources, setSources] = useState<ScraperSource[]>([]);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'unavailable' | 'loading'>('loading');
+  const [llmHealth, setLlmHealth] = useState<Pick<OllamaHealthResponse, 'provider' | 'model'> | null>(null);
 
   // Real-time LLM job status: keyed by job name
   const [llmJobs, setLlmJobs] = useState<Record<string, { state: string; label: string; ts: number }>>({});
@@ -55,6 +56,9 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
       setSources(s);
       setStatus(st);
       setOllamaStatus(ol.status as 'ok' | 'unavailable');
+      setLlmHealth(
+        ol.status === 'ok' ? { provider: ol.provider, model: ol.model } : null
+      );
     } catch { /* ignore */ }
   };
 
@@ -132,8 +136,20 @@ export default function ControlPanel({ autoRefresh, onAutoRefreshChange, refresh
           <StatCard label="事件总数" value={status?.events_total ?? '…'} color="#ff6b35" />
           <StatCard label="待处理" value={status?.news_unprocessed ?? '…'} color="#ffdd00" />
           <StatCard
-            label="Ollama AI"
-            value={ollamaStatus === 'ok' ? '在线' : ollamaStatus === 'unavailable' ? '离线' : '...'}
+            label={
+              llmHealth?.provider === 'lm_studio'
+                ? 'LLM (LM Studio)'
+                : llmHealth?.provider === 'ollama'
+                  ? 'LLM (Ollama)'
+                  : 'LLM'
+            }
+            value={
+              ollamaStatus === 'ok'
+                ? `在线${llmHealth?.model ? ` · ${llmHealth.model.slice(0, 28)}${llmHealth.model.length > 28 ? '…' : ''}` : ''}`
+                : ollamaStatus === 'unavailable'
+                  ? '离线'
+                  : '...'
+            }
             color={ollamaStatus === 'ok' ? '#00ff88' : '#ff2244'}
           />
         </div>

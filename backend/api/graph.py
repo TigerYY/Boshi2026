@@ -89,6 +89,7 @@ def _parse_until(until_str: Optional[str]) -> datetime:
 async def get_knowledge_graph(
     days: int = 7,
     interpretation: bool = True,
+    include_failed_reports: bool = False,
     until: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -163,7 +164,17 @@ async def get_knowledge_graph(
             AnalysisReport.generated_at >= window_start,
             AnalysisReport.generated_at <= window_end,
         ).order_by(AnalysisReport.generated_at.desc()).limit(10))
-        reports = reports_result.scalars().all()
+        reports_raw = reports_result.scalars().all()
+        reports: list[AnalysisReport] = []
+        filtered_failed_reports = 0
+        for r in reports_raw:
+            fd = r.forecast_data or {}
+            meta = fd.get("__report_meta", {}) if isinstance(fd, dict) else {}
+            is_valid = bool(meta.get("is_valid_report", True))
+            if include_failed_reports or is_valid:
+                reports.append(r)
+            else:
+                filtered_failed_reports += 1
 
         thread_ids = {n.thread_id for n in news_items if n.thread_id} | {e.thread_id for e in events if e.thread_id}
         threads = []
@@ -192,14 +203,22 @@ async def get_knowledge_graph(
         # 1. 研判报告节点（中心锚点）
         for r in reports:
             rid = f"report_{r.id}"
-            label = (r.outlook or r.content or f"研判{r.report_type or '综合'}")[:14]
-            if len((r.outlook or r.content or "") or "") > 14:
+            fd = r.forecast_data or {}
+            rmeta = fd.get("__report_meta", {}) if isinstance(fd, dict) else {}
+            is_valid = bool(rmeta.get("is_valid_report", True))
+            source_text = r.outlook or r.content or f"研判{r.report_type or '综合'}"
+            if not is_valid:
+                source_text = "研判暂不可用"
+            label = source_text[:14]
+            if len(source_text or "") > 14:
                 label = label.rstrip() + ".."
             add_node(rid, label or f"报告{r.id}", "report", {
-                "desc": r.outlook or r.content,
+                "desc": (r.outlook or r.content) if is_valid else "",
                 "val": 12,
                 "time": iso_utc(r.generated_at or r.period_end),
                 "impact_score": r.intensity_score,
+                "is_valid_report": is_valid,
+                "error_code": rmeta.get("error_code", ""),
             })
 
         # 2. 线索枢纽
@@ -308,5 +327,8 @@ async def get_knowledge_graph(
             "window_end": iso_utc(window_end),
             "data_coverage_start": iso_utc(window_start),
             "data_coverage_end": iso_utc(window_end),
+            "report_total": len(reports_raw) if interpretation else 0,
+            "report_valid": len(reports) if interpretation else 0,
+            "report_filtered_failed": filtered_failed_reports if interpretation else 0,
         },
     }

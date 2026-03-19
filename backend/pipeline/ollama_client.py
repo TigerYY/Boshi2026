@@ -1,15 +1,16 @@
-"""Async wrapper around the Ollama HTTP API.
+"""LLM client: LM Studio (OpenAI-compatible) first, Ollama fallback.
 
 Uses requests (via asyncio.to_thread) instead of httpx because Ollama's
 HTTP server returns 503 to httpx connections during model loading, while
 requests/urllib handle the wait correctly.
 
-Model strategy:
-- FAST_MODEL (qwen2.5:3b): structured JSON tasks (news classification,
-  summarization). Quick inference.
-- ANALYSIS_MODEL (qwen3-vl:8b): complex strategic reports. CoT in 'thinking'
-  field (Ollama-native separation); content field may be empty until thinking
-  completes — needs high num_predict budget.
+Model strategy (Ollama path):
+- FAST_MODEL / ANALYSIS_MODEL (Qwen3.5-35B-A3B:latest): unified text model
+  for structured JSON tasks and strategic reports.
+- VISION_MODEL (qwen3-vl:8b): optional vision model for image tasks.
+
+LM Studio path: single LM_STUDIO_MODEL for all text chat; vision tasks use
+Ollama only (analyze_image).
 """
 import asyncio
 import json
@@ -24,34 +25,312 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Use environment variable for Ollama host to support remote LLM deployment
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+FAILED_REPORT_TEXT = "分析生成失败，请稍后重试。"
+
+# Prefer IPv4 loopback to avoid IPv6 localhost resolution issues on some hosts.
+def _normalize_to_ipv4(url: str) -> str:
+    url = (url or "").strip()
+    if not url:
+        return url
+    url = url.replace("http://localhost:", "http://127.0.0.1:")
+    url = url.replace("https://localhost:", "https://127.0.0.1:")
+    url = url.replace("http://[::1]:", "http://127.0.0.1:")
+    url = url.replace("https://[::1]:", "https://127.0.0.1:")
+    return url
+
+
+# Use environment variable for Ollama host to support remote LLM deployment.
+OLLAMA_HOST = _normalize_to_ipv4(os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")).rstrip("/")
 OLLAMA_BASE = OLLAMA_HOST
 
-FAST_MODEL = "qwen2.5:3b"          # for structured JSON tasks (news summarization/classification)
-ANALYSIS_MODEL = "qwen3-vl:8b"     # for complex strategic analysis + image understanding
+# LM Studio OpenAI-compatible API (default port 1234).
+LM_STUDIO_BASE = _normalize_to_ipv4(os.getenv("LM_STUDIO_BASE", "http://127.0.0.1:1234/v1")).rstrip("/")
+# Must match the local LM Studio loaded model id.
+LM_STUDIO_MODEL = os.getenv("LM_STUDIO_MODEL", "qwen/qwen3.5-35b-a3b")
+
+# Optional: override Ollama context length if your server supports it.
+_OLLAMA_NUM_CTX: Optional[int] = None
+_OLLAMA_NUM_CTX_RAW = (os.getenv("OLLAMA_NUM_CTX", "") or "").strip()
+if _OLLAMA_NUM_CTX_RAW:
+    try:
+        _OLLAMA_NUM_CTX = int(_OLLAMA_NUM_CTX_RAW)
+    except ValueError:
+        logger.warning("Invalid OLLAMA_NUM_CTX=%r, ignoring", _OLLAMA_NUM_CTX_RAW)
+# lm_studio | ollama | auto
+# auto: Ollama-first, then LM Studio fallback (recommended for single-service local setups).
+LLM_PRIMARY = os.getenv("LLM_PRIMARY", "auto").strip().lower()
+
+# Force LM Studio as the only inference backend (disables Ollama fallback).
+LM_STUDIO_ONLY = os.getenv("LM_STUDIO_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+def _safe_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default))
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+PROVIDER_FAILOVER_THRESHOLD = max(1, _safe_env_int("PROVIDER_FAILOVER_THRESHOLD", 2))
+PROVIDER_FAILOVER_COOLDOWN_SEC = max(5, _safe_env_int("PROVIDER_FAILOVER_COOLDOWN_SEC", 45))
+
+OLLAMA_TEXT_MODEL = os.getenv("OLLAMA_TEXT_MODEL", "Qwen3.5-35B-A3B:latest").strip()
+OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "qwen3-vl:8b").strip()
+
+FAST_MODEL = OLLAMA_TEXT_MODEL      # unified text model for structured JSON tasks
+ANALYSIS_MODEL = OLLAMA_TEXT_MODEL  # unified text model for complex strategic analysis
+VISION_MODEL = OLLAMA_VISION_MODEL  # dedicated vision model when available in Ollama
 MODEL = ANALYSIS_MODEL              # backwards-compat alias
 
 # Serialise Ollama calls by model type to prevent concurrent loading crashes
-_fast_semaphore = asyncio.Semaphore(1)
-_analysis_semaphore = asyncio.Semaphore(1)
+_text_semaphore = asyncio.Semaphore(1)
+_vision_semaphore = asyncio.Semaphore(1)
+
+_lm_studio_model_runtime: Optional[str] = None
+_ollama_vision_runtime_cache: dict[str, float | bool] = {"value": False, "expires_at": 0.0}
+_provider_runtime_state: dict[str, dict[str, float | int]] = {
+    "ollama": {"fail_count": 0, "cooldown_until": 0.0},
+    "lm_studio": {"fail_count": 0, "cooldown_until": 0.0},
+}
 
 
-def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-               num_predict: int = 1024, model: str = ANALYSIS_MODEL, format: str = None) -> dict:
-    """Blocking chat call — returns a dict with 'content' and 'thinking'."""
-    payload = {
+def _get_effective_lm_studio_model_id_sync() -> str:
+    """
+    Resolve LM Studio model id from /models and cache it.
+
+    This fixes cases where LM_STUDIO_MODEL env var doesn't exactly match the
+    actual loaded model id (case/alias differences).
+    """
+    global _lm_studio_model_runtime
+    if _lm_studio_model_runtime:
+        return _lm_studio_model_runtime
+    ok, mid = _check_lm_studio_models_sync()
+    _lm_studio_model_runtime = mid if (ok and mid) else LM_STUDIO_MODEL
+    return _lm_studio_model_runtime
+
+
+def _provider_order(ollama_only: bool) -> list[str]:
+    """
+    Decide backend priority for current request.
+    Returns a list like ["ollama", "lm_studio"].
+    """
+    if LM_STUDIO_ONLY:
+        return ["lm_studio"]
+    if ollama_only:
+        return ["ollama"]
+    primary = (LLM_PRIMARY or "auto").strip().lower()
+    if primary == "lm_studio":
+        return ["lm_studio", "ollama"]
+    if primary == "ollama":
+        return ["ollama", "lm_studio"]
+    # auto (default): Ollama first, LM Studio fallback.
+    order = ["ollama", "lm_studio"]
+    # Adaptive reorder: if primary is in cooldown, temporarily prefer the backup.
+    if _is_provider_in_cooldown(order[0]) and not _is_provider_in_cooldown(order[1]):
+        return [order[1], order[0]]
+    return order
+
+
+def _is_provider_in_cooldown(provider: str) -> bool:
+    st = _provider_runtime_state.get(provider)
+    if not st:
+        return False
+    return float(st.get("cooldown_until", 0.0)) > time.time()
+
+
+def _record_provider_success(provider: str) -> None:
+    st = _provider_runtime_state.get(provider)
+    if not st:
+        return
+    st["fail_count"] = 0
+    st["cooldown_until"] = 0.0
+
+
+def _record_provider_failure(provider: str) -> None:
+    st = _provider_runtime_state.get(provider)
+    if not st:
+        return
+    fail_count = int(st.get("fail_count", 0)) + 1
+    st["fail_count"] = fail_count
+    if fail_count >= PROVIDER_FAILOVER_THRESHOLD:
+        st["cooldown_until"] = time.time() + PROVIDER_FAILOVER_COOLDOWN_SEC
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid int env %s=%r, use default %d", name, raw, default)
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Invalid float env %s=%r, use default %f", name, raw, default)
+        return default
+
+
+def _task_profile(task: str) -> dict[str, Any]:
+    """
+    Centralized generation parameters per task.
+    Keep defaults tuned for "balanced" stability.
+    """
+    # Shared defaults
+    if task == "fast_json":
+        return {
+            "temperature": _env_float("FAST_JSON_TEMPERATURE", 0.1),
+            "num_predict": _env_int("FAST_JSON_NUM_PREDICT", 800),
+            "timeout": _env_int("FAST_JSON_TIMEOUT", 240),
+            "format": "json",
+        }
+    if task == "osint_json":
+        return {
+            "temperature": _env_float("OSINT_TEMPERATURE", 0.15),
+            "num_predict": _env_int("OSINT_NUM_PREDICT", 1400),
+            "timeout": _env_int("OSINT_TIMEOUT", 300),
+            "format": "json",
+        }
+    if task == "daily_summary":
+        return {
+            "temperature": _env_float("DAILY_TEMPERATURE", 0.2),
+            "num_predict": _env_int("DAILY_NUM_PREDICT", 8192),
+            "timeout": _env_int("DAILY_TIMEOUT", 480),
+            "format": "json",
+        }
+    if task == "image_analysis":
+        return {
+            "temperature": _env_float("IMAGE_TEMPERATURE", 0.2),
+            "num_predict": _env_int("IMAGE_NUM_PREDICT", 512),
+            "timeout": _env_int("IMAGE_TIMEOUT", 120),
+            "fetch_timeout": _env_int("IMAGE_FETCH_TIMEOUT", 30),
+        }
+    if task == "threads_json":
+        return {
+            "temperature": _env_float("THREADS_TEMPERATURE", 0.1),
+            "num_predict": _env_int("THREADS_NUM_PREDICT", 2000),
+            "timeout": _env_int("THREADS_TIMEOUT", 240),
+            "format": "json",
+        }
+    if task == "causal_links_json":
+        return {
+            "temperature": _env_float("CAUSAL_TEMPERATURE", 0.1),
+            "num_predict": _env_int("CAUSAL_NUM_PREDICT", 1000),
+            "timeout": _env_int("CAUSAL_TIMEOUT", 240),
+            "format": "json",
+        }
+    # fallback: balanced
+    return {
+        "temperature": 0.2,
+        "num_predict": 1024,
+        "timeout": 240,
+    }
+
+
+def _chat_lm_studio_sync(
+    messages: list[dict],
+    temperature: float,
+    timeout: int,
+    max_tokens: int,
+    model: str,
+    format_json: bool,
+) -> dict:
+    """POST /v1/chat/completions — returns {"content", "thinking": ""}."""
+    base_payload: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max(1, min(max_tokens, 131072)),
+        "stream": False,
+    }
+    if format_json:
+        attempts = (
+            ({**base_payload, "response_format": {"type": "json_object"}}, True),
+            (base_payload, False),
+        )
+    else:
+        attempts = ((base_payload, False),)
+    last_err: Optional[Exception] = None
+    for payload, _ in attempts:
+        adaptive_payload = dict(payload)
+        adaptive_retries = 0
+        while True:
+            resp = requests.post(
+                f"{LM_STUDIO_BASE}/chat/completions",
+                json=adaptive_payload,
+                timeout=timeout,
+            )
+            if resp.status_code == 400 and format_json and "response_format" in adaptive_payload:
+                last_err = requests.HTTPError(
+                    f"LM Studio HTTP {resp.status_code}: {resp.text[:200]!r}"
+                )
+                break
+
+            # Auto-shrink max_tokens when LM Studio says context budget is exceeded.
+            if resp.status_code == 400 and "Context size has been exceeded" in (resp.text or ""):
+                cur_mt = int(adaptive_payload.get("max_tokens") or 0)
+                if cur_mt > 128 and adaptive_retries < 3:
+                    adaptive_payload["max_tokens"] = max(128, cur_mt // 2)
+                    adaptive_retries += 1
+                    logger.warning(
+                        "LM Studio context exceeded, retry with max_tokens=%s",
+                        adaptive_payload["max_tokens"],
+                    )
+                    continue
+
+            if resp.status_code >= 500:
+                resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise requests.HTTPError(
+                    f"LM Studio HTTP {resp.status_code}: {resp.text[:300]!r}"
+                )
+            data = resp.json()
+            choices = data.get("choices") or []
+            if not choices:
+                raise ValueError("LM Studio: empty choices")
+            msg = choices[0].get("message") or {}
+            content = (msg.get("content") or "") or ""
+            # Some reasoning models configured with "separate reasoning_content" may
+            # return the final answer inside `reasoning_content` while `content` is empty.
+            reasoning_content = (msg.get("reasoning_content") or "") or ""
+            if content:
+                return {"content": content, "thinking": ""}
+            return {"content": "", "thinking": reasoning_content}
+    if last_err:
+        raise last_err
+    raise RuntimeError("LM Studio: no completion attempts")
+
+
+def _chat_ollama_sync(
+    messages: list[dict],
+    temperature: float = 0.3,
+    timeout: int = 240,
+    num_predict: int = 1024,
+    model: str = ANALYSIS_MODEL,
+    format: str = None,
+) -> dict:
+    """Blocking Ollama chat — returns a dict with 'content' and 'thinking'."""
+    payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
         "stream": False,
         "keep_alive": "30m",
-        "format": format, # json mode
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
-            "num_ctx": 16384,
         },
     }
+    # Avoid sending incompatible/null fields (some Ollama versions are strict).
+    if format is not None:
+        payload["format"] = format
+    if _OLLAMA_NUM_CTX is not None:
+        payload["options"]["num_ctx"] = _OLLAMA_NUM_CTX
     resp = requests.post(
         f"{OLLAMA_BASE}/api/chat",
         json=payload,
@@ -66,12 +345,72 @@ def _chat_sync(messages: list[dict], temperature: float = 0.3, timeout: int = 24
     return {"content": content, "thinking": thinking}
 
 
-async def _chat(messages: list[dict], temperature: float = 0.3, timeout: int = 240,
-                 num_predict: int = 1024, model: str = ANALYSIS_MODEL, format: str = None) -> dict:
+def _chat_unified_sync(
+    messages: list[dict],
+    temperature: float = 0.3,
+    timeout: int = 240,
+    num_predict: int = 1024,
+    model: str = ANALYSIS_MODEL,
+    format: str = None,
+    *,
+    ollama_only: bool = False,
+) -> dict:
+    order = _provider_order(ollama_only)
+    last_err: Optional[Exception] = None
+
+    for provider in order:
+        try:
+            if provider == "ollama":
+                result = _chat_ollama_sync(messages, temperature, timeout, num_predict, model, format)
+                _record_provider_success("ollama")
+                return result
+            result = _chat_lm_studio_sync(
+                messages,
+                temperature,
+                timeout,
+                num_predict,
+                _get_effective_lm_studio_model_id_sync(),
+                format_json=(format == "json"),
+            )
+            _record_provider_success("lm_studio")
+            return result
+        except Exception as e:
+            last_err = e
+            _record_provider_failure(provider)
+            # Single-provider mode should fail immediately.
+            if len(order) == 1:
+                raise
+            logger.warning("%s failed, trying next provider: %s", provider, e)
+
+    if last_err:
+        raise last_err
+    raise RuntimeError("No available LLM provider")
+
+
+async def _chat(
+    messages: list[dict],
+    temperature: float = 0.3,
+    timeout: int = 240,
+    num_predict: int = 1024,
+    model: str = ANALYSIS_MODEL,
+    format: str = None,
+    *,
+    ollama_only: bool = False,
+) -> dict:
     """Async wrapper: returns dict {"content": str, "thinking": str}."""
-    sem = _fast_semaphore if model == FAST_MODEL else _analysis_semaphore
+    sem = _vision_semaphore if model == VISION_MODEL else _text_semaphore
     async with sem:
-        return await asyncio.to_thread(_chat_sync, messages, temperature, timeout, num_predict, model, format)
+        return await asyncio.to_thread(
+            lambda: _chat_unified_sync(
+                messages,
+                temperature,
+                timeout,
+                num_predict,
+                model,
+                format,
+                ollama_only=ollama_only,
+            )
+        )
 
 
 def _unload_sync() -> None:
@@ -92,8 +431,14 @@ async def unload_model() -> None:
 
 
 def _parse_json_from_response(raw: str) -> dict:
-    """Extract the first valid JSON object from a response string."""
-    raw = raw.strip()
+    """
+    Extract the last valid JSON object/array from a response string.
+
+    This is more robust for "reasoning_content" outputs where the prompt
+    itself may contain example JSON objects (we want the *model answer*,
+    which is usually the last JSON block in the text).
+    """
+    raw = (raw or "").strip()
 
     # Strip ```json … ``` or ``` … ```
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
@@ -106,23 +451,57 @@ def _parse_json_from_response(raw: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Find first { or [ block
-    s_obj = raw.find("{")
-    s_arr = raw.find("[")
-    
-    # Logic to find the start of either a dict or list
-    if s_obj == -1 and s_arr == -1:
-        raise ValueError(f"No valid JSON found in response: {raw[:300]}")
-    
-    start = s_obj if (s_arr == -1 or (s_obj != -1 and s_obj < s_arr)) else s_arr
-    end_char = "}" if raw[start] == "{" else "]"
-    end = raw.rfind(end_char)
-    
-    if start != -1 and end != -1:
-        try:
-            return json.loads(raw[start: end + 1])
-        except json.JSONDecodeError:
-            pass
+    def _find_matching_bracket(s: str, start_idx: int, open_ch: str, close_ch: str) -> Optional[str]:
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start_idx, len(s)):
+            ch = s[i]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return s[start_idx : i + 1]
+        return None
+
+    def _try_last(start_ch: str, end_ch: str) -> Optional[Any]:
+        start_idx = raw.rfind(start_ch)
+        while start_idx != -1:
+            candidate = _find_matching_bracket(raw, start_idx, start_ch, end_ch)
+            if candidate:
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    pass
+            start_idx = raw.rfind(start_ch, 0, start_idx)
+        return None
+
+    # Try the later start first (object vs array).
+    last_obj = raw.rfind("{")
+    last_arr = raw.rfind("[")
+    order: list[tuple[str, str, int]] = []
+    if last_obj != -1:
+        order.append(("{", "}", last_obj))
+    if last_arr != -1:
+        order.append(("[", "]", last_arr))
+    order.sort(key=lambda x: x[2], reverse=True)
+
+    for open_ch, close_ch, _ in order:
+        obj = _try_last(open_ch, close_ch)
+        if obj is not None:
+            return obj
 
     raise ValueError(f"No valid JSON found in response: {raw[:300]}")
 
@@ -156,7 +535,7 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         locations: list[{name, lat, lon}]  — extracted via keyword lookup, not AI
         is_breaking: bool
 
-    Uses FAST_MODEL (qwen2.5:3b) for structured JSON output.
+    Uses FAST_MODEL (Qwen3.5-35B-A3B:latest) for structured JSON output.
     Location coordinates are resolved via keyword table rather than AI generation
     to avoid hallucinated coordinates from small models.
     """
@@ -183,12 +562,15 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         "5. 只输出JSON，不要解释，不要markdown代码块"
     )
     res = {"content": "", "thinking": ""}
+    prof = _task_profile("fast_json")
     try:
         res = await _chat(
             [{"role": "user", "content": prompt}],
-            temperature=0.1,   
-            num_predict=600,
+            temperature=prof["temperature"],
+            num_predict=prof["num_predict"],
+            timeout=prof["timeout"],
             model=FAST_MODEL,
+            format=prof.get("format"),
         )
         raw = res["content"] or res["thinking"]
         result = _parse_json_from_response(raw)
@@ -226,29 +608,127 @@ async def summarize_and_classify(title: str, content: str) -> dict:
         }
 
 
+def _extract_final_text_from_reasoning(text: str) -> str:
+    """
+    For reasoning models with separate `reasoning_content`,
+    the final user-facing answer is sometimes embedded after a marker.
+    """
+    if not text:
+        return ""
+    for marker in ["Output:", "输出：", "最终输出：", "Final Output:", "Final Answer:", "最终答案："]:
+        idx = text.rfind(marker)
+        if idx != -1:
+            tail = text[idx + len(marker) :].strip()
+            if "\n" in tail:
+                tail = tail.splitlines()[0].strip()
+            return tail
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return lines[-1] if lines else text.strip()
+
+
+def _extract_json_segment_near_output(text: str) -> Optional[dict]:
+    """
+    Best-effort JSON extraction from reasoning-style outputs that include
+    markers like "Output:" / "Final Output:".
+    """
+    if not text:
+        return None
+    markers = ["Output:", "输出：", "最终输出：", "Final Output:", "Final Answer:", "最终答案："]
+    for marker in markers:
+        idx = text.rfind(marker)
+        if idx == -1:
+            continue
+        tail = text[idx + len(marker) :].strip()
+        if not tail:
+            continue
+        try:
+            return _parse_json_from_response(tail)
+        except Exception:
+            continue
+    return None
+
+
+def _has_ollama_vision_model_sync() -> bool:
+    """
+    Cached check for Ollama vision model availability.
+    """
+    now = time.time()
+    cached_exp = float(_ollama_vision_runtime_cache.get("expires_at", 0.0))
+    if now < cached_exp:
+        return bool(_ollama_vision_runtime_cache.get("value", False))
+    try:
+        resp = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
+        resp.raise_for_status()
+        tags = resp.json()
+        names = [str(m.get("name", "")) for m in tags.get("models", [])]
+        prefix = VISION_MODEL.split(":")[0].lower()
+        has_vision = any(prefix in n.lower() for n in names)
+        _ollama_vision_runtime_cache["value"] = has_vision
+        _ollama_vision_runtime_cache["expires_at"] = now + 15.0
+        return has_vision
+    except Exception:
+        _ollama_vision_runtime_cache["value"] = False
+        _ollama_vision_runtime_cache["expires_at"] = now + 5.0
+        return False
+
+
 async def analyze_image(image_url: str) -> str:
     """Use qwen3-vl vision capability to describe a military image."""
     try:
-        resp = await asyncio.to_thread(requests.get, image_url, timeout=30)
+        prof = _task_profile("image_analysis")
+        resp = await asyncio.to_thread(
+            requests.get,
+            image_url,
+            timeout=prof["fetch_timeout"],
+        )
         resp.raise_for_status()
         b64 = base64.b64encode(resp.content).decode()
+        content_type = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower() or "image/jpeg"
+        if not content_type.startswith("image/"):
+            content_type = "image/jpeg"
 
         prompt = (
             "You are a military image analyst. Describe this image in Chinese concisely "
             "(2-3 sentences), focusing on: military assets visible, location clues, "
             "activity type, and military significance."
         )
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
-        res = await _chat(messages, temperature=0.2, num_predict=256)
-        return (res["content"] or res["thinking"]).strip()
+        # Prefer Ollama vision model when available; otherwise route directly to
+        # LM Studio multimodal to avoid guaranteed text-model mismatch in Ollama.
+        has_vision = await asyncio.to_thread(_has_ollama_vision_model_sync)
+        if has_vision:
+            # Ollama vision expects `images` on the message, not OpenAI content array.
+            res = await asyncio.to_thread(
+                lambda: _chat_ollama_sync(
+                    messages=[{"role": "user", "content": prompt, "images": [b64]}],
+                    temperature=prof["temperature"],
+                    timeout=prof["timeout"],
+                    num_predict=prof["num_predict"],
+                    model=VISION_MODEL,
+                    format=None,
+                )
+            )
+        else:
+            # LM Studio multimodal uses OpenAI-compatible content array.
+            res = await asyncio.to_thread(
+                lambda: _chat_lm_studio_sync(
+                    [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{b64}"}},
+                                {"type": "text", "text": prompt},
+                            ],
+                        }
+                    ],
+                    prof["temperature"],
+                    prof["timeout"],
+                    prof["num_predict"],
+                    _get_effective_lm_studio_model_id_sync(),
+                    format_json=False,
+                )
+            )
+        text = (res["content"] or res["thinking"] or "").strip()
+        return _extract_final_text_from_reasoning(text)
     except Exception as e:
         logger.warning(f"analyze_image failed for {image_url}: {e}")
         return ""
@@ -376,9 +856,9 @@ async def generate_daily_summary(
         "3. **确定性预警**：outlook 字段必须包含对未来 48 小时内最具风险的 1 个具体维度的明确预警。\n"
         "4. **禁止泄露指令**：报告内容严禁提及任何关于 JSON 格式、任务要求、系统角色等元指令文字，直接输出专业的判读内容。\n\n"
         "【待研判解密数据】\n"
-        f"1. 原始新闻摘要：\n{news_text[:2500]}\n\n"
-        f"2. 确证军事事件：\n{events_text[:1500]}\n\n"
-        f"3. 宏观避险及大宗商品波动：\n{financial_text}\n\n"
+        f"1. 原始新闻摘要：\n{news_text[:_env_int('DAILY_NEWS_CHARS', 2500)]}\n\n"
+        f"2. 确证军事事件：\n{events_text[:_env_int('DAILY_EVENTS_CHARS', 1500)]}\n\n"
+        f"3. 宏观避险及大宗商品波动：\n{financial_text[:_env_int('DAILY_FINANCE_CHARS', 1200)]}\n\n"
         "只返回如下 JSON 格式，不要包含任何思考过程或解释（必须用真实深度分析结果替换尖括号内容）：\n"
         '{"summary":"<300字左右的高密度综述，遵循：总览-核心动作-战略意图链条>","intensity_score":<烈度评分0.0-10.0>,'
         '"key_developments":["<关键进展1：因果关系描述>","<关键进展2：因果关系描述>","<关键进展3：因果关系描述>"],'
@@ -391,13 +871,50 @@ async def generate_daily_summary(
         '"forecast_data":{"24h": <概率>, "48h": <概率>, "72h": <概率>}}\n\n'
         "重要：hotspots 中必须包含至少一个最具战略意义的地理节点坐标（纬度 10-45，经度 32-75）。"
     )
+    def _classify_summary_error(exc: Exception) -> str:
+        s = str(exc or "")
+        sl = s.lower()
+        if "context size has been exceeded" in sl:
+            return "context_exceeded"
+        if "timed out" in sl or "timeout" in sl:
+            return "timeout"
+        if "no valid json found" in sl:
+            return "json_parse_failed"
+        if "connection" in sl or "refused" in sl:
+            return "lmstudio_unreachable"
+        if "http 5" in sl:
+            return "provider_5xx"
+        return "unknown_error"
+
     res = {"content": "", "thinking": ""}
     try:
+        prof = _task_profile("daily_summary")
         # Daily summary JSON needs more room: 400-word summary + hotspots
-        res = await _chat([{"role": "user", "content": prompt}], timeout=480, num_predict=8192)
+        res = await _chat(
+            [{"role": "user", "content": prompt}],
+            temperature=prof["temperature"],
+            timeout=prof["timeout"],
+            num_predict=prof["num_predict"],
+            format=prof.get("format"),
+        )
         logger.info("Daily summary raw content length: %d, thinking length: %d", len(res["content"]), len(res["thinking"]))
         raw = res["content"] or res["thinking"]
-        result = _parse_json_from_response(raw)
+        try:
+            result = _parse_json_from_response(raw)
+        except Exception:
+            # Retry with a tighter budget to reduce reasoning spillover.
+            retry_num_predict = max(1200, min(int(prof["num_predict"]), 4096))
+            retry_timeout = min(int(prof["timeout"]), 240)
+            retry_res = await _chat(
+                [{"role": "user", "content": prompt + "\n\n仅返回JSON对象，不要任何解释或前后缀。"}],
+                temperature=min(float(prof["temperature"]), 0.15),
+                timeout=retry_timeout,
+                num_predict=retry_num_predict,
+                format=prof.get("format"),
+            )
+            raw = retry_res["content"] or retry_res["thinking"]
+            res = retry_res
+            result = _parse_json_from_response(raw)
         result.setdefault("summary", "")
         result.setdefault("intensity_score", 5.0)
         result.setdefault("key_developments", [])
@@ -408,23 +925,41 @@ async def generate_daily_summary(
         result.setdefault("abu_dhabi_risk", 10.0)
         result.setdefault("abu_dhabi_status", "阿联酋本土目前维持日常警戒，未受周边冲突直接波及。")
         result.setdefault("forecast_data", {"24h": 50.0, "48h": 50.0, "72h": 50.0})
-        
+
         result["thinking_process"] = res["thinking"]
         result["intensity_score"] = max(0.0, min(10.0, float(result["intensity_score"])))
         # Fix any 0,0 or out-of-region coordinates from the AI
         result["hotspots"] = [_fix_hotspot_coords(h) for h in result["hotspots"]]
+        # Embed report validity metadata for graph filtering/observability.
+        fd = result.get("forecast_data") if isinstance(result.get("forecast_data"), dict) else {}
+        fd["__report_meta"] = {
+            "status": "ok",
+            "is_valid_report": True,
+            "error_code": "",
+        }
+        result["forecast_data"] = fd
         return result
     except Exception as e:
         logger.error(f"generate_daily_summary error: {e} | raw={res['content'][:300]}")
+        error_code = _classify_summary_error(e)
         return {
-            "summary": "分析生成失败，请稍后重试。",
+            "summary": FAILED_REPORT_TEXT,
             "intensity_score": 5.0,
             "key_developments": [],
             "hotspots": [],
             "outlook": "",
             "escalation_probability": 0.0,
             "market_correlation": "",
-            "forecast_data": {"24h": 0.0, "48h": 0.0, "72h": 0.0},
+            "forecast_data": {
+                "24h": 0.0,
+                "48h": 0.0,
+                "72h": 0.0,
+                "__report_meta": {
+                    "status": "error",
+                    "is_valid_report": False,
+                    "error_code": error_code,
+                },
+            },
             "thinking_process": str(e)
         }
 
@@ -458,6 +993,40 @@ def _osint_best_paragraph(text: str) -> str:
     return text[:1200] if text else ""
 
 
+def _contains_chinese(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _is_placeholder_or_meta(text: str) -> bool:
+    if not text:
+        return True
+    t = text.strip()
+    bad_fragments = (
+        "<一句话", "<一段", "<中文", "<分析", "core_assessment", "analysis",
+        "Input Data", "Determine", "Output Format", "Final Decision",
+        "Task:", "Thinking Process", "模板", "占位符",
+    )
+    if any(b in t for b in bad_fragments):
+        return True
+    # Placeholder-like short skeletons
+    if re.search(r"<[^>]{1,40}>", t):
+        return True
+    return False
+
+
+def _clean_osint_text(text: str) -> str:
+    if not text:
+        return ""
+    t = _strip_osint_think_leakage(text)
+    # Remove common markdown bullets/enumeration prefixes
+    t = re.sub(r"^\s*[-*]\s+", "", t, flags=re.MULTILINE)
+    t = re.sub(r"^\s*\d+\.\s+", "", t, flags=re.MULTILINE)
+    # Normalize excessive spaces
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    return t
+
+
 def _parse_osint_json(raw: str) -> Optional[dict]:
     raw = _strip_osint_think_leakage(raw).strip()
     if not raw:
@@ -472,11 +1041,21 @@ def _parse_osint_json(raw: str) -> Optional[dict]:
             return {"core_assessment": ca, "analysis": an}
     except Exception as e:
         logger.debug("OSINT JSON parse failed: %s", e)
+    # Fallback: reasoning output may place final JSON near "Output:" marker.
+    try:
+        obj = _extract_json_segment_near_output(raw)
+        if isinstance(obj, dict):
+            ca = (obj.get("core_assessment") or obj.get("core") or "").strip()
+            an = (obj.get("analysis") or obj.get("深度研判") or "").strip()
+            if ca or an:
+                return {"core_assessment": ca, "analysis": an}
+    except Exception:
+        pass
     return None
 
 
 def _parse_osint_template(text: str) -> Optional[dict]:
-    t = _strip_osint_think_leakage(text)
+    t = _clean_osint_text(text)
     if not t:
         return None
     core = ""
@@ -494,6 +1073,8 @@ def _parse_osint_template(text: str) -> Optional[dict]:
     )
     if m_an:
         analysis = m_an.group(1).strip()
+    core = _clean_osint_text(core)
+    analysis = _clean_osint_text(analysis)
     if core or analysis:
         return {"core_assessment": core, "analysis": analysis}
     return None
@@ -512,6 +1093,12 @@ async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
     """
     RAG OSINT：三层解析（JSON / 模板 / 段落兜底），返回结构化结果。
     """
+    context = (context or "").strip()
+    # RAG 上下文做硬截断，避免在 35B 大模型上因上下文过长导致波动/超时。
+    max_ctx_chars = int(os.getenv("OSINT_RAG_MAX_CONTEXT_CHARS", "10000"))
+    if max_ctx_chars > 0 and len(context) > max_ctx_chars:
+        context = context[:max_ctx_chars]
+
     sys_json = (
         "你是军情战略指挥中心的 AI 参谋。仅依据下方【战场数据】回答长官提问。\n\n"
         "纪律：禁止内心独白、禁止复述用户指令、禁止罗列新闻条目；必须做情报合成。\n"
@@ -534,12 +1121,13 @@ async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
 
     try:
         logger.info("OSINT query start: %s...", question[:40])
+        prof = _task_profile("osint_json")
         res = await _chat(
             messages,
-            temperature=0.15,
-            num_predict=1400,
-            timeout=270,
-            format="json",
+            temperature=prof["temperature"],
+            num_predict=prof["num_predict"],
+            timeout=prof["timeout"],
+            format=prof.get("format"),
         )
         raw = (res.get("content") or "").strip() or (res.get("thinking") or "").strip()
         parsed = _parse_osint_json(raw)
@@ -554,16 +1142,67 @@ async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
                 analysis = parsed2["analysis"]
                 parse_mode = "template"
         if not core_assessment and not analysis:
-            combined = _strip_osint_think_leakage(
-                (res.get("content") or "") + "\n\n" + (res.get("thinking") or "")
+            # Second pass (same model): use lighter non-JSON template to improve
+            # practical usability when strict JSON mode drifts into reasoning text.
+            retry_sys = (
+                "你是军情战略指挥中心 AI 参谋。仅依据给定战场数据回答。\n"
+                "不要复述指令，不要输出思考过程。\n"
+                "按以下固定模板输出两段：\n"
+                "核心态势：一句完整中文判断。\n\n"
+                "深度研判：一段完整中文分析。\n"
+                "禁止输出任何尖括号占位符、英文提示词或模板说明。\n"
             )
+            retry_messages = [
+                {"role": "system", "content": retry_sys + "\n\n【战场数据】\n" + context},
+                {"role": "user", "content": user_msg},
+            ]
+            retry_prof = {
+                "temperature": min(float(prof["temperature"]), 0.1),
+                "num_predict": min(int(prof["num_predict"]), 900),
+                "timeout": min(int(prof["timeout"]), 150),
+            }
+            retry_res = await _chat(
+                retry_messages,
+                temperature=retry_prof["temperature"],
+                num_predict=retry_prof["num_predict"],
+                timeout=retry_prof["timeout"],
+                format=None,
+            )
+            retry_content = (retry_res.get("content") or "") + "\n\n" + (retry_res.get("thinking") or "")
+            parsed_retry = _parse_osint_template(retry_content)
+            if parsed_retry:
+                core_assessment = parsed_retry["core_assessment"]
+                analysis = parsed_retry["analysis"]
+                parse_mode = "template_retry"
+                fallback_reason = "strict_json_failed_then_template_retry_ok"
+            else:
+                combined = _strip_osint_think_leakage(retry_content)
+                para = _osint_best_paragraph(combined)
+                if para:
+                    analysis = para
+                    parse_mode = "fallback"
+                    fallback_reason = "模型未返回合法 JSON，已采用正文最优段落作为研判摘要"
+                else:
+                    fallback_reason = "模型返回为空"
+
+        # Final cleanup: remove placeholders/meta leakage from all parse paths.
+        core_assessment = _clean_osint_text(core_assessment)
+        analysis = _clean_osint_text(analysis)
+        if _is_placeholder_or_meta(core_assessment):
+            core_assessment = ""
+        if _is_placeholder_or_meta(analysis):
+            analysis = ""
+
+        # If cleaned result still has no reliable Chinese analysis, fallback to best paragraph.
+        if not analysis or not _contains_chinese(analysis):
+            combined = _clean_osint_text((res.get("content") or "") + "\n\n" + (res.get("thinking") or ""))
             para = _osint_best_paragraph(combined)
-            if para:
+            para = _clean_osint_text(para)
+            if para and not _is_placeholder_or_meta(para):
                 analysis = para
                 parse_mode = "fallback"
-                fallback_reason = "模型未返回合法 JSON，已采用正文最优段落作为研判摘要"
-            else:
-                fallback_reason = "模型返回为空"
+                fallback_reason = fallback_reason or "cleaning_replaced_with_best_paragraph"
+
         if not core_assessment and analysis:
             first = analysis.split("。")[0].strip()
             core_assessment = (first + "。") if first else analysis[:80] + "…"
@@ -606,7 +1245,7 @@ async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
             "status": "degraded",
             "core_assessment": "",
             "analysis": "",
-            "answer": "本地情报推理模块连接异常，无法完成合成研判。请确认 Ollama 服务可用后重试。",
+            "answer": "本地情报推理模块连接异常，无法完成合成研判。请确认 LM Studio 服务可用后重试。",
             "fallback_reason": str(e)[:200],
             "parse_mode": "error",
             "model": ANALYSIS_MODEL,
@@ -614,23 +1253,76 @@ async def ask_osint_question(question: str, context: str) -> Dict[str, Any]:
         }
 
 
-async def health_check() -> bool:
+def _check_lm_studio_models_sync() -> tuple[bool, Optional[str]]:
     try:
-        resp = await asyncio.to_thread(requests.get, f"{OLLAMA_BASE}/api/tags", timeout=5)
+        resp = requests.get(f"{LM_STUDIO_BASE}/models", timeout=5)
         if resp.status_code != 200:
-            return False
+            return False, None
+        data = resp.json()
+        models = data.get("data") or []
+        if not models:
+            return False, None
+        ids = [str(m.get("id", "")) for m in models]
+        if LM_STUDIO_MODEL in ids:
+            return True, LM_STUDIO_MODEL
+        first_id = ids[0] if ids else LM_STUDIO_MODEL
+        logger.info("LM Studio: LM_STUDIO_MODEL not in /models, using first available: %s", first_id)
+        return True, first_id
+    except Exception as e:
+        logger.debug("LM Studio /models check failed: %s", e)
+        return False, None
+
+
+def _check_ollama_tags_sync() -> tuple[bool, Optional[str]]:
+    try:
+        resp = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
+        if resp.status_code != 200:
+            return False, None
         tags = resp.json()
-        names = [m.get("name", "") for m in tags.get("models", [])]
-        # Require at least the analysis model; fast model may still be downloading
-        has_analysis = any(ANALYSIS_MODEL.split(":")[0] in n for n in names)
-        has_fast = any(FAST_MODEL.split(":")[0] in n for n in names)
+        names = [str(m.get("name", "")) for m in tags.get("models", [])]
+        text_prefix = OLLAMA_TEXT_MODEL.split(":")[0].lower()
+        vision_prefix = OLLAMA_VISION_MODEL.split(":")[0].lower()
+        has_analysis = any(text_prefix in n.lower() for n in names)
+        has_fast = any(text_prefix in n.lower() for n in names)
+        has_vision = any(vision_prefix in n.lower() for n in names)
         if not has_analysis:
             logger.warning("Ollama: analysis model %s not found", ANALYSIS_MODEL)
-        if not has_fast:
-            logger.warning("Ollama: fast model %s not found", FAST_MODEL)
-        return has_analysis or has_fast
+        if not has_vision:
+            logger.info("Ollama: optional vision model %s not found yet", OLLAMA_VISION_MODEL)
+        if not (has_analysis or has_fast):
+            return False, None
+        for n in names:
+            if text_prefix in n.lower():
+                return True, n
+        for n in names:
+            if text_prefix in n.lower():
+                return True, n
+        return True, names[0] if names else None
     except Exception:
-        return False
+        return False, None
+
+
+async def health_check_detail() -> tuple[bool, Optional[str], Optional[str]]:
+    """
+    Returns (ok, provider, model_id).
+    provider is 'lm_studio' or 'ollama' when ok.
+    """
+    order = _provider_order(ollama_only=False)
+    for provider in order:
+        if provider == "ollama":
+            ok_ol, oid = await asyncio.to_thread(_check_ollama_tags_sync)
+            if ok_ol:
+                return True, "ollama", oid or OLLAMA_TEXT_MODEL
+        else:
+            ok_lm, mid = await asyncio.to_thread(_check_lm_studio_models_sync)
+            if ok_lm and mid:
+                return True, "lm_studio", mid
+    return False, None, None
+
+
+async def health_check() -> bool:
+    ok, _, _ = await health_check_detail()
+    return ok
 
 
 # Alias used by processor.py
@@ -671,12 +1363,14 @@ async def identify_narrative_threads(items: list[dict]) -> list[dict]:
     ]
 
     try:
+        prof = _task_profile("threads_json")
         res = await _chat(
             messages,
-            temperature=0.1,
-            num_predict=2000,
+            temperature=prof["temperature"],
+            num_predict=prof["num_predict"],
+            timeout=prof["timeout"],
             model=FAST_MODEL, # Qwen2.5 3B is more compliant for strictly formatted tasks
-            format="json"
+            format=prof.get("format"),
         )
         raw = res["content"] or res["thinking"]
         return _parse_json_from_response(raw)
@@ -719,12 +1413,14 @@ async def infer_causal_links(items: list[dict]) -> list[dict]:
     ]
 
     try:
+        prof = _task_profile("causal_links_json")
         res = await _chat(
             messages,
-            temperature=0.1,
-            num_predict=1000,
+            temperature=prof["temperature"],
+            num_predict=prof["num_predict"],
+            timeout=prof["timeout"],
             model=FAST_MODEL,
-            format="json"
+            format=prof.get("format"),
         )
         raw = res["content"] or res["thinking"]
         return _parse_json_from_response(raw)

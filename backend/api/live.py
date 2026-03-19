@@ -259,6 +259,7 @@ _DEMO_SHIPS = [
 
 import websockets
 import json
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
 _ais_ws_task = None
 _ais_state = {}
@@ -275,10 +276,18 @@ async def _ais_listener_loop(api_key: str):
         "FilterMessageTypes": ["PositionReport"]
     }
     
+    reconnect_delay = 5
     while True:
         try:
-            async with websockets.connect(uri) as websocket:
+            async with websockets.connect(
+                uri,
+                ping_interval=20,
+                ping_timeout=20,
+                close_timeout=10,
+                max_size=2 * 1024 * 1024,
+            ) as websocket:
                 logger.info("Connected to AISStream WebSocket")
+                reconnect_delay = 5
                 await websocket.send(json.dumps(subscribe_message))
                 async for message in websocket:
                     msg = json.loads(message)
@@ -319,10 +328,22 @@ async def _ais_listener_loop(api_key: str):
                             keys = list(_ais_state.keys())[:500]
                             for k in keys:
                                 _ais_state.pop(k, None)
-                                
+
+        except ConnectionClosedOK as e:
+            # Normal close initiated by server/client; reconnect silently.
+            logger.info("AISStream connection closed normally: %s", e)
+        except ConnectionClosedError as e:
+            # Frequent transient condition on public streams; keep logs low-noise.
+            msg = str(e)
+            if "no close frame received or sent" in msg.lower():
+                logger.info("AISStream transient disconnect, reconnecting...")
+            else:
+                logger.warning("AISStream connection closed with error: %s", e)
         except Exception as e:
-            logger.warning(f"AISStream connection error: {e}")
-            await asyncio.sleep(5)
+            logger.warning("AISStream connection error: %s", e)
+
+        await asyncio.sleep(reconnect_delay)
+        reconnect_delay = min(reconnect_delay * 2, 60)
 
 
 def _ensure_ais_listener():
@@ -330,7 +351,7 @@ def _ensure_ais_listener():
     if _ais_ws_task is None or _ais_ws_task.done():
         api_key = os.environ.get("AISSTREAM_API_KEY", "e7a7fb78b225406bf8b43aec35f0e1fa68157196")
         if api_key:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             _ais_ws_task = loop.create_task(_ais_listener_loop(api_key))
 
 

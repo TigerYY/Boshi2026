@@ -7,6 +7,8 @@ import SatelliteCompareModal from '../Map/SatelliteCompareModal';
 
 interface Props {
   ollamaOk: boolean;
+  /** lm_studio | ollama from /api/analysis/ollama/health */
+  llmProvider?: string;
   autoRefresh: boolean;
   notifications: string[];
   onToggleTimeline: () => void;
@@ -32,7 +34,23 @@ function timeAgo(dateStr: string | null): string {
   return `${hrs}小时${remMins}分钟前`;
 }
 
-export default function Header({ ollamaOk, autoRefresh, notifications, onToggleTimeline, timelineActive, refreshTrigger, viewMode, onViewModeChange }: Props) {
+function llmProviderLabel(p?: string): string {
+  if (p === 'lm_studio') return 'LM Studio';
+  if (p === 'ollama') return 'Ollama';
+  return '';
+}
+
+export default function Header({
+  ollamaOk,
+  llmProvider,
+  autoRefresh,
+  notifications,
+  onToggleTimeline,
+  timelineActive,
+  refreshTrigger,
+  viewMode,
+  onViewModeChange,
+}: Props) {
   const [time, setTime] = useState(new Date());
   const [lastSuccess, setLastSuccess] = useState<string | null>(null);
   const [showOsint, setShowOsint] = useState(false);
@@ -90,11 +108,13 @@ export default function Header({ ollamaOk, autoRefresh, notifications, onToggleT
           activeColor="#ff2244"
           pulse
         />
-        <StatusBadge
-          label="AI"
-          active={ollamaOk}
-          activeColor="#00d4ff"
-        />
+        <span title={ollamaOk ? `LLM 在线 · ${llmProviderLabel(llmProvider) || '后端'}` : 'LLM 离线'}>
+          <StatusBadge
+            label={ollamaOk && llmProvider === 'lm_studio' ? 'AI·LM' : 'AI'}
+            active={ollamaOk}
+            activeColor="#00d4ff"
+          />
+        </span>
       </div>
 
       {/* Last update time */}

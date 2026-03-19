@@ -91,7 +91,10 @@ export interface AnalysisReport {
   market_correlation: string;
   abu_dhabi_risk: number;
   abu_dhabi_status: string;
-  forecast_data: Record<string, number>;
+  forecast_data: Record<string, unknown>;
+  report_status?: string;
+  is_valid_report?: boolean;
+  error_code?: string;
   thinking_process: string;
 }
 

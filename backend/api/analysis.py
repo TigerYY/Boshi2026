@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from models import get_db, AnalysisReport, MilitaryEvent, NewsItem
-from pipeline.ollama_client import generate_daily_summary, health_check
+from pipeline.ollama_client import generate_daily_summary, health_check_detail
 import math
 from ._utils import iso_utc
 
@@ -226,8 +226,12 @@ async def intensity_trend(
 
 @router.get("/ollama/health")
 async def ollama_health():
-    ok = await health_check()
-    return {"status": "ok" if ok else "unavailable", "model": "qwen3-vl:8b"}
+    ok, provider, model_id = await health_check_detail()
+    return {
+        "status": "ok" if ok else "unavailable",
+        "model": model_id or "unknown",
+        "provider": provider or "",
+    }
 
 
 @router.get("/finance")
@@ -252,6 +256,8 @@ async def get_latest_finance(db: AsyncSession = Depends(get_db)):
 
 
 def _serialize(r: AnalysisReport) -> dict:
+    fd = r.forecast_data or {}
+    meta = fd.get("__report_meta", {}) if isinstance(fd, dict) else {}
     return {
         "id": r.id,
         "report_type": r.report_type,
@@ -267,6 +273,9 @@ def _serialize(r: AnalysisReport) -> dict:
         "market_correlation": r.market_correlation,
         "abu_dhabi_risk": r.abu_dhabi_risk,
         "abu_dhabi_status": r.abu_dhabi_status,
-        "forecast_data": r.forecast_data or {},
+        "forecast_data": fd,
+        "report_status": meta.get("status", "ok"),
+        "is_valid_report": bool(meta.get("is_valid_report", True)),
+        "error_code": meta.get("error_code", ""),
         "thinking_process": r.thinking_process or "",
     }

@@ -19,6 +19,7 @@ export type ViewMode = 'map' | 'graph';
 export default function App() {
   const store = useAppStore();
   const [ollamaOk, setOllamaOk] = useState(false);
+  const [llmProvider, setLlmProvider] = useState<string | undefined>(undefined);
   const [newsBadge, setNewsBadge] = useState(0);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>('idle');
   const [report, setReport] = useState<AnalysisReport | null>(null);
@@ -31,7 +32,15 @@ export default function App() {
 
   // Check Ollama health + initial report fetch + dynamic timeline range
   useEffect(() => {
-    fetchOllamaHealth().then(r => setOllamaOk(r.status === 'ok')).catch(() => setOllamaOk(false));
+    fetchOllamaHealth()
+      .then((r) => {
+        setOllamaOk(r.status === 'ok');
+        setLlmProvider(r.provider);
+      })
+      .catch(() => {
+        setOllamaOk(false);
+        setLlmProvider(undefined);
+      });
     fetchLatestReport().then(r => { if ('id' in r) setReport(r as AnalysisReport); }).catch(() => { });
     fetchLatestFinance().then(setFinanceData).catch(() => { });
 
@@ -125,6 +134,7 @@ export default function App() {
     <div className="scanline" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Header
         ollamaOk={ollamaOk}
+        llmProvider={llmProvider}
         autoRefresh={store.autoRefresh}
         notifications={store.notifications}
         onToggleTimeline={() => store.setTimeline(t => ({ ...t, enabled: !t.enabled }))}

@@ -8,8 +8,8 @@ import type {
 const BASE = '';
 
 const http = axios.create({ baseURL: BASE, timeout: 120000 });
-/** OSINT 研判可能超过 120s，独立长超时 */
-const osintHttp = axios.create({ baseURL: BASE, timeout: 240000 });
+/** OSINT 研判可能超过 120s，独立长超时（默认 300s） */
+const osintHttp = axios.create({ baseURL: BASE, timeout: 300000 });
 
 // ── News ──────────────────────────────────────────────────────────────────
 export const fetchNews = (params?: {
@@ -93,8 +93,14 @@ export const triggerAnalysis = () =>
 export const fetchLatestFinance = () =>
   http.get<Record<string, { symbol: string; price: number; change: number }>>('/api/analysis/finance').then(r => r.data);
 
+export type OllamaHealthResponse = {
+  status: string;
+  model: string;
+  /** lm_studio | ollama when online */
+  provider?: string;
+};
 export const fetchOllamaHealth = () =>
-  http.get<{ status: string; model: string }>('/api/analysis/ollama/health').then(r => r.data);
+  http.get<OllamaHealthResponse>('/api/analysis/ollama/health').then((r) => r.data);
 
 export type OsintCitation = { id: number; type: string; time: string; title: string };
 export type OsintChatMeta = {
@@ -128,17 +134,22 @@ export type KnowledgeGraphMeta = {
   window_end: string;
   data_coverage_start: string;
   data_coverage_end: string;
+  report_total?: number;
+  report_valid?: number;
+  report_filtered_failed?: number;
 };
 
 export const fetchKnowledgeGraph = (
   days: number = 7,
   interpretation: boolean = true,
+  includeFailedReports: boolean = false,
   until?: Date | null,
   signal?: AbortSignal
 ) => {
   const params: Record<string, string | number | boolean> = {
     days: Math.max(1, Math.min(365, Math.round(days))),
     interpretation: Boolean(interpretation),
+    include_failed_reports: Boolean(includeFailedReports),
   };
   if (until) params.until = until.toISOString();
   return http

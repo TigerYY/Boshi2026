@@ -16,7 +16,7 @@ _port_in_use() {
     return 0  # 被占用
   fi
   # 兜底：nc 连接测试
-  if nc -z localhost "$port" 2>/dev/null; then
+  if nc -z 127.0.0.1 "$port" 2>/dev/null; then
     return 0  # 被占用
   fi
   return 1    # 空闲
@@ -56,19 +56,26 @@ LAN_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -
 
 # ── 检查 Ollama ───────────────────────────────────────────────────────────────
 # 优先使用环境变量中指定的 OLLAMA_HOST
-_OLLAMA_URL=${OLLAMA_HOST:-"http://localhost:11434"}
+_OLLAMA_URL=${OLLAMA_HOST:-"http://127.0.0.1:11434"}
 _OLLAMA_URL=${_OLLAMA_URL%/} # 移除末尾斜杠
+_OLLAMA_URL=${_OLLAMA_URL/localhost/127.0.0.1} # 避免 localhost 优先解析到 IPv6
 
 if ! curl -s "$_OLLAMA_URL/api/tags" > /dev/null 2>&1; then
   echo "⚠  Ollama 未运行或无法连接: $_OLLAMA_URL"
   echo "   请确保 Ollama 服务已启动，或检查 OLLAMA_HOST 环境变量"
   echo ""
 else
-  if curl -s "$_OLLAMA_URL/api/tags" 2>/dev/null | grep -q "qwen3-vl"; then
-    echo "✓  Ollama qwen3-vl:8b 模型已就绪 @ $_OLLAMA_URL"
+  _TAGS_JSON=$(curl -s "$_OLLAMA_URL/api/tags" 2>/dev/null || echo "")
+  if echo "$_TAGS_JSON" | grep -iq "Qwen3.5-35B-A3B"; then
+    echo "✓  Ollama 文本模型 Qwen3.5-35B-A3B:latest 已就绪 @ $_OLLAMA_URL"
   else
-    echo "⚠  qwen3-vl:8b 模型未找到，请先拉取:"
-    echo "   ollama pull qwen3-vl:8b"
+    echo "⚠  文本模型 Qwen3.5-35B-A3B:latest 未找到，请先拉取:"
+    echo "   ollama pull Qwen3.5-35B-A3B:latest"
+  fi
+  if echo "$_TAGS_JSON" | grep -iq "qwen3-vl"; then
+    echo "✓  Ollama 视觉模型 qwen3-vl:8b 已就绪 @ $_OLLAMA_URL"
+  else
+    echo "ℹ  可选视觉模型 qwen3-vl:8b 尚未就绪（图像分析将回退 LM Studio）"
   fi
 fi
 

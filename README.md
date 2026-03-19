@@ -15,7 +15,7 @@
 
 - **实时态势地图** — 基于 React Leaflet 的交互式地图，标注冲突区域、军事单位位置与事件热点
 - **多源新闻聚合** — 自动抓取 BBC、Reuters、Al Jazeera 等主流媒体 RSS，结合 Playwright 动态爬取
-- **AI 智能分析** — 接入本地 Ollama（`qwen3-vl:8b` 多模态模型），对事件自动生成态势研判报告
+- **AI 智能分析** — 支持 **Ollama + LM Studio** 双后端自动切换；默认在 `auto` 下先试 Ollama（`Qwen3.5-35B-A3B:latest` 文本），失败再回退 LM Studio
 - **事件时间轴** — 按时间序列展示冲突事件，支持筛选与详情查看
 - **实时推送** — 后端通过 WebSocket 向前端实时推送最新事件与新闻
 - **定时调度** — APScheduler 驱动，每小时自动抓取更新数据，每日生成综合分析
@@ -105,7 +105,10 @@ brew install ollama
 # 启动 Ollama 服务
 ollama serve
 
-# 拉取 qwen3-vl 模型（约 5GB）
+# 拉取文本模型（推荐，MoE，约 21GB）
+ollama pull Qwen3.5-35B-A3B:latest
+
+# 可选：拉取视觉模型（用于 Ollama 原生图像分析）
 ollama pull qwen3-vl:8b
 ```
 
@@ -161,6 +164,25 @@ npm run dev
 | 前端 Vite Dev Server | `5173` |
 | 后端 FastAPI | `8100` |
 | Ollama | `11434` |
+| LM Studio（可选） | `1234` | OpenAI 兼容 `/v1`，文字推理优先走此服务 |
+
+### LLM 环境变量（后端）
+
+在启动 `uvicorn` 前可设置：
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `LM_STUDIO_BASE` | `http://127.0.0.1:1234/v1` | LM Studio 本地服务器 OpenAI 兼容根路径 |
+| `LM_STUDIO_MODEL` | `qwen/qwen3.5-35b-a3b` | 须与 LM Studio 中已加载模型的 API id 一致 |
+| `LLM_PRIMARY` | `auto` | `auto`：先试 Ollama，失败再 LM Studio；`lm_studio`：先试 LM Studio；`ollama`：先试 Ollama |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama 地址（降级与图像分析） |
+| `OLLAMA_TEXT_MODEL` | `Qwen3.5-35B-A3B:latest` | Ollama 文本任务模型（摘要、OSINT、日报等） |
+| `OLLAMA_VISION_MODEL` | `qwen3-vl:8b` | Ollama 视觉任务模型（可选，未就绪时图像分析会走 LM Studio） |
+| `LM_STUDIO_ONLY` | `0` | 设为 `1` 时仅使用 LM Studio，不回退 Ollama |
+| `PROVIDER_FAILOVER_THRESHOLD` | `2` | 在 `auto` 模式下，首选服务连续失败达到该次数后进入短暂冷却 |
+| `PROVIDER_FAILOVER_COOLDOWN_SEC` | `45` | 首选服务冷却秒数，冷却期间优先尝试备用服务 |
+
+**图像分析**（`analyze_image`）会优先检测 Ollama 视觉模型是否存在：存在则走 `OLLAMA_VISION_MODEL`，否则直接走 LM Studio 多模态；若你本地只开一个服务，系统会自动落到可用服务。
 
 ---
 

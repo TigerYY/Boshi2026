@@ -17,7 +17,7 @@ function errMessage(err: unknown): { tag: string; text: string } {
   if (e.code === 'ECONNABORTED') {
     return {
       tag: 'TIMEOUT',
-      text: '请求超时（>240s）。若本机 Ollama 仍在推理，可稍后重试或缩短回溯天数。',
+      text: '请求超时（>300s）。若本机 Ollama/LM Studio 仍在推理，可稍后重试或缩短回溯天数。',
     };
   }
   const st = e.response?.status;
@@ -421,7 +421,7 @@ export default function OsintTerminal() {
             <div
               style={{ color: '#00d4ff', padding: '6px 10px', fontFamily: 'monospace' }}
             >
-              <span className="typing-dot">_</span> 检索情报库并执行研判（最长约 240s）…
+              <span className="typing-dot">_</span> 检索情报库并执行研判（最长约 300s）…
             </div>
           </div>
         )}
