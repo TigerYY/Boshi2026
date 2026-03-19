@@ -12,6 +12,7 @@ from ._utils import iso_utc
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
+REPORT_FAIL_CONTENT = ("分析生成失败", "研判暂不可用", "暂无法生成研判")
 
 # 关系语义转换
 RELATION_ZH = {
@@ -171,6 +172,10 @@ async def get_knowledge_graph(
             fd = r.forecast_data or {}
             meta = fd.get("__report_meta", {}) if isinstance(fd, dict) else {}
             is_valid = bool(meta.get("is_valid_report", True))
+            # Backward compatibility: old reports may miss __report_meta but still
+            # contain explicit failure text in content.
+            if is_valid and any(pat in (r.content or "") for pat in REPORT_FAIL_CONTENT):
+                is_valid = False
             if include_failed_reports or is_valid:
                 reports.append(r)
             else:
